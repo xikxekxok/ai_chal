@@ -28,6 +28,7 @@ pip install -r weeks/week-NN/day-DD/requirements.txt   # если есть
 1. Код и файлы — в `weeks/week-NN/day-DD/`.
 2. Зависимости дня — `requirements.txt` в той же папке.
 3. После сдачи: README дня + [submissions.md](submissions.md).
+4. Журнал: [journal/week-NN/day-DD.md](journal/) — кратко что сделали, проблемы, находки (см. `.cursor/rules/course-journal.mdc`).
 
 ## Boundaries
 

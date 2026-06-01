@@ -2,18 +2,40 @@
 
 ## Задание
 
-_Заполнить после публикации задания (14:00)._
+Минимальный код: запрос в LLM через API → ответ → вывод в консоль (CLI).
+
+Провайдер: [Dockhost Inference](https://docs.dockhost.ru/manual/ai/inference/use) (OpenAI-compatible).
 
 ## Результат
 
-_Кратко: что должно работать на видео._
+На видео: запуск `main.py`, в консоли виден ответ модели.
+
+## Запуск
+
+```bash
+source .venv/bin/activate
+pip install -r weeks/week-01/day-01/requirements.txt
+cp .env.example .env   # если ещё нет
+# В .env: DOCKHOST_AI_KEY=...
+
+python weeks/week-01/day-01/main.py
+python weeks/week-01/day-01/main.py "Объясни, что такое API, в двух предложениях"
+```
+
+Переменные окружения (альтернатива именам Dockhost — стандарт OpenAI SDK):
+
+- `DOCKHOST_AI_KEY` или `OPENAI_API_KEY`
+- `OPENAI_BASE_URL` (по умолчанию `https://inference.dockhost.io/v1`)
+- `DOCKHOST_MODEL` (по умолчанию `deepseek/deepseek-v3.2`)
 
 ## Статус
 
-- [ ] Код готов
+- [x] Код готов
 - [ ] Видео записано
 - [ ] Ссылка в таблице курса
-- [ ] Обновлён [submissions.md](../../../submissions.md)
+- [x] Обновлён [submissions.md](../../../submissions.md)
+
+Журнал: [journal/week-01/day-01.md](../../../journal/week-01/day-01.md)
 
 ## Артефакты
 
