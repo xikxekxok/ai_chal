@@ -22,7 +22,7 @@ python weeks/week-01/day-01/main.py
 python weeks/week-01/day-01/main.py "Объясни, что такое API, в двух предложениях"
 ```
 
-Переменные окружения (альтернатива именам Dockhost — стандарт OpenAI SDK):
+Переменные окружения:
 
 - `DOCKHOST_AI_KEY` или `OPENAI_API_KEY`
 - `OPENAI_BASE_URL` (по умолчанию `https://inference.dockhost.io/v1`)

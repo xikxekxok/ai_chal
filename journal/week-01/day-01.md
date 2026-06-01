@@ -4,14 +4,14 @@
 
 ## Что сделали
 
-- CLI `weeks/week-01/day-01/main.py`: OpenAI SDK + `base_url` Dockhost (`https://inference.dockhost.io/v1`), модель `deepseek/deepseek-v3.2`.
+- CLI `weeks/week-01/day-01/main.py`: `requests.post` на `/v1/chat/completions` Dockhost, модель `deepseek/deepseek-v3.2`.
 - Ключ в `.env` (`DOCKHOST_AI_KEY`), шаблон в `.env.example`.
 - Запуск **из корня репозитория**: `python weeks/week-01/day-01/main.py` (`.env` ищется в корне).
 
 ## Интересное
 
-- Dockhost — **OpenAI-compatible**: тот же `chat.completions`, что и у OpenAI; достаточно сменить `base_url` и ключ.
-- Можно использовать и `OPENAI_API_KEY` / `OPENAI_BASE_URL` — SDK их понимает из коробки.
+- Dockhost — **OpenAI-compatible**: обычный JSON POST на `/chat/completions`, без SDK.
+- Сначала был OpenAI SDK — заменили на `requests`, чтобы видеть «голый» HTTP.
 
 ## Проблемы
 

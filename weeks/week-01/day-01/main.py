@@ -1,4 +1,4 @@
-"""Минимальный CLI: запрос к LLM через Dockhost (OpenAI-compatible API)."""
+"""Минимальный CLI: запрос к LLM через Dockhost (HTTP + requests)."""
 
 from __future__ import annotations
 
@@ -6,10 +6,9 @@ import os
 import sys
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
-from openai import OpenAI
 
-# .env в корне репозитория
 load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
 DEFAULT_MODEL = "deepseek/deepseek-v3.2"
@@ -25,16 +24,25 @@ def main() -> None:
         )
         sys.exit(1)
 
-    base_url = os.environ.get("OPENAI_BASE_URL", "https://inference.dockhost.io/v1")
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://inference.dockhost.io/v1").rstrip("/")
     model = os.environ.get("DOCKHOST_MODEL", DEFAULT_MODEL)
     prompt = " ".join(sys.argv[1:]).strip() or DEFAULT_PROMPT
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
+    response = requests.post(
+        f"{base_url}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=120,
     )
-    print(response.choices[0].message.content or "")
+    response.raise_for_status()
+    data = response.json()
+    print(data["choices"][0]["message"]["content"] or "")
 
 
 if __name__ == "__main__":
