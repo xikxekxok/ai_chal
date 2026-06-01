@@ -1,0 +1,39 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Media & large artifacts (videos go to cloud storage)
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local models / heavy data (week 6+)
+models/
+*.gguf
+*.bin

@@ -1,0 +1,2 @@
+# Корневые зависимости подключаются через: pip install -e .
+# Зависимости конкретного дня — в weeks/week-NN/day-DD/requirements.txt

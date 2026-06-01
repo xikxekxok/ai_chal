@@ -1,0 +1,16 @@
+---
+description: Python conventions for AI Advent assignments
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python (AI Advent)
+
+- Python **3.11+**. Активируй `.venv` в корне репозитория.
+- Код задания — в `weeks/week-NN/day-DD/`. Доп. зависимости — `requirements.txt` в папке дня.
+- Предпочитай простую структуру: `main.py`, при росте — пакет `app/` в той же папке дня.
+- Type hints — где помогают читаемости, не обязательны везде.
+- Запуск: `python weeks/week-NN/day-DD/main.py` из корня (или `cd` в папку дня).
+- Lint/format: `ruff check weeks/` и `ruff format weeks/`.
+- Тесты — `pytest` в папке дня, если есть смысл; не добавляй пустые тесты ради галочки.
+- Секреты только через `os.environ` / dotenv из `.env` (не в коде).
