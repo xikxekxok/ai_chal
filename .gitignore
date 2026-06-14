@@ -41,6 +41,7 @@ models/
 # Chat history (week 2 day 2)
 weeks/week-02/day-02/chat_history.json
 weeks/week-02/day-03/chat_history.json
+weeks/week-02/day-04/chat_history.json
 
 # Gutenberg corpus cache (week 2 day 3)
 weeks/week-02/day-03/.cache/
