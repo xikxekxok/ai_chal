@@ -37,3 +37,6 @@ Thumbs.db
 models/
 *.gguf
 *.bin
+
+# Chat history (week 2 day 2)
+weeks/week-02/day-02/chat_history.json

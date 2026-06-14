@@ -190,11 +190,19 @@ EOF
 DAY_SHA="$(git rev-parse HEAD)"
 DAY_URL="$(commit_url "$DAY_SHA")"
 
-echo "→ push origin master..."
-git push origin master
-
 echo ""
 echo "DAY_COMMIT=${DAY_URL}"
 if [[ -n "$EXTRA_SHA" ]]; then
   echo "EXTRA_COMMIT=$(commit_url "$EXTRA_SHA")"
 fi
+
+echo "→ push origin master..."
+if ! git push origin master; then
+  echo "" >&2
+  echo "finish_day: PUSH_FAILED — коммиты созданы локально (ссылки выше), push не выполнен." >&2
+  echo "  Частая причина в Cursor: sandbox блокирует DNS/SSH до github.com." >&2
+  echo "  Повторите: git push origin master  (агенту — с правами all, не sandbox)." >&2
+  exit 1
+fi
+
+echo "PUSH_OK=true"

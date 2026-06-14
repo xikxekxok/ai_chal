@@ -20,6 +20,6 @@ pip install -r weeks/week-NN/day-DD/requirements.txt   # если есть
 | Format | `ruff format weeks/` |
 | Test | `pytest weeks/ -q` |
 | Run | `python weeks/week-NN/day-DD/main.py` |
-| Finish day | `/finish_day` в чате или `./scripts/finish_day.sh -m "…"` |
+| Finish day | `/finish_day` — скрипт с правами **`all`** (см. command) |
 
 Пути подставляй под текущий день. Slash-команда: [`.cursor/commands/finish_day.md`](.cursor/commands/finish_day.md).
