@@ -1,0 +1,76 @@
+---
+description: Неделя 2 — лекция, Dockhost, контекст/память/агенты
+globs: weeks/week-02/**
+alwaysApply: false
+---
+
+# Неделя 2
+
+## Лекция — опора для заданий
+
+Перед реализацией задания прочитай [week2_summary.md](lessons/week2_summary.md) и **ориентируйся на концепции лекции**:
+
+- четыре блока агента: context, memory, planning, tool orchestration;
+- техники контекста и памяти — выбирай ту, что соответствует теме задания (sliding window, compression, RAG/embeddings, layering и т.д.), а не «наугад»;
+- планирование и tool loop — если задание про agent flow;
+- минимализм и демо на видео — см. `ai-advent.mdc`.
+
+Если формулировка задания неясна — сопоставь её с разделами саммари и уточни у пользователя, какую технику из лекции нужно показать.
+
+## Dockhost
+
+На **2-й неделе** LLM вызываем через **[Dockhost Inference](https://docs.dockhost.ru/manual/ai/inference/use)** — тот же провайдер, что в неделе 1. API **OpenAI-compatible**: обычный JSON POST на `/chat/completions`, без SDK.
+
+### Переменные окружения
+
+Ключ и настройки — в `.env` в **корне репозитория** (шаблон: `.env.example`):
+
+| Переменная | Назначение |
+|------------|------------|
+| `DOCKHOST_AI_KEY` | API-ключ (основной) |
+| `OPENAI_API_KEY` | запасной alias для ключа |
+| `OPENAI_BASE_URL` | по умолчанию `https://inference.dockhost.io/v1` |
+| `DOCKHOST_MODEL` | по умолчанию `deepseek/deepseek-v3.2` |
+
+В коде не хардкодить ключи. Загрузка `.env`:
+
+```python
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+```
+
+(`parents[3]` — из `weeks/week-02/day-DD/` в корень репо.)
+
+### Вызов API
+
+Минимальный паттерн — как в [неделе 1](../../weeks/week-01/day-01/main.py):
+
+```python
+response = requests.post(
+    f"{base_url}/chat/completions",
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        # temperature, max_tokens, response_format, tools — по заданию
+    },
+    timeout=120,
+)
+response.raise_for_status()
+content = response.json()["choices"][0]["message"]["content"]
+```
+
+- Эндпоинт: `{OPENAI_BASE_URL}/chat/completions`
+- Ответ: `choices[0].message.content`; usage — в `usage` (`prompt_tokens`, `completion_tokens`)
+- Несколько моделей / сравнение тарифов — см. [week-01/day-05](../../weeks/week-01/day-05/main.py)
+
+### Практика
+
+- Зависимости дня: `requests`, `python-dotenv` в `requirements.txt`.
+- При отсутствии ключа — понятное сообщение в stderr и `sys.exit(1)`.
+- Запросы из sandbox Cursor к Dockhost могут требовать разрешения сети; локально обычно работает сразу.

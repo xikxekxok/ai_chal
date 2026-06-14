@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Python 3.11+. Задание дня: `weeks/week-NN/day-DD/`. Работай только в активной папке дня, если пользователь не просит иначе.
+Инструкции для Cursor при работе в репозитории. Контекст курса и правила — [`.cursor/rules/`](.cursor/rules/) (главное: `ai-advent.mdc`, проверка после кода: `verify-after-code.mdc`).
 
 ## Setup
 
@@ -20,19 +20,6 @@ pip install -r weeks/week-NN/day-DD/requirements.txt   # если есть
 | Format | `ruff format weeks/` |
 | Test | `pytest weeks/ -q` |
 | Run | `python weeks/week-NN/day-DD/main.py` |
+| Finish day | `/finish_day` в чате или `./scripts/finish_day.sh -m "…"` |
 
-Пути подставляй под текущий день.
-
-## День задания
-
-1. Код и файлы — в `weeks/week-NN/day-DD/`.
-2. Зависимости дня — `requirements.txt` в той же папке.
-3. После сдачи: README дня + [submissions.md](submissions.md).
-4. Журнал: [journal/week-NN/day-DD.md](journal/) — кратко что сделали, проблемы, находки (см. `.cursor/rules/course-journal.mdc`).
-
-## Boundaries
-
-- Не коммитить `.env`, ключи, `*.mp4` и крупные файлы.
-- Не трогать другие `week-* / day-*` без запроса.
-- Минимальный diff, только текущее задание.
-- Неделя 6+: VPS/локальные модели — только если пользователь просит.
+Пути подставляй под текущий день. Slash-команда: [`.cursor/commands/finish_day.md`](.cursor/commands/finish_day.md).

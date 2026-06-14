@@ -1,6 +1,6 @@
 # ai_chall
 
-Python, задания по дням: `weeks/week-NN/day-DD/`.
+Репозиторий для **AI Advent Challenge #8**: задания по дням, от простых вызовов LLM к своим агентам. Структура: `weeks/week-NN/day-DD/`.
 
 - Прогресс сдач: [submissions.md](submissions.md)
 - Для Cursor: [AGENTS.md](AGENTS.md)
