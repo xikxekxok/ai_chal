@@ -7,22 +7,22 @@ todos:
     status: completed
   - id: memory-module
     content: "memory.py: short / working (per-opossum) / long (charter.md), load/save, dump_layers, clear"
-    status: in_progress
+    status: completed
   - id: memory-classifier
     content: "classifier.py: LLM-вызов после хода → JSON saves[] в working|long|skip; код применяет whitelist слоёв"
     status: pending
   - id: agent-llm
     content: "agent.py + llm.py: prompt builder, turn loop, Dockhost"
-    status: pending
+    status: completed
   - id: user-sim-demo
     content: "user_sim.py + main.py --demo: 3 диалога (Марта×2, директор×1), между ними clear short"
-    status: pending
+    status: completed
   - id: readme-journal
     content: README day-01, journal/week-03/day-01.md после прогона
-    status: pending
+    status: completed
   - id: verify
     content: ruff + --show-memory + один --demo с API
-    status: pending
+    status: completed
 isProject: false
 ---
 
