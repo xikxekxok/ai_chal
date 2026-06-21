@@ -37,7 +37,8 @@
 1. День — по путям `weeks/week-NN/day-DD/` и `journal/week-NN/day-DD.md`.
 2. Несколько дней в diff → ошибка, коммит вручную.
 3. Прочие файлы (rules, AGENTS.md и т.д.) → отдельный коммит `Update repo config and tooling.`
-4. Файлы задания → коммит с `-m`.
+4. Файлы задания + **plan дня** из `.cursor/plans/` → коммит с `-m`.
+   Plan ищется по ссылкам на `weeks/week-NN/day-DD/` в содержимом; запасной вариант — по имени файла (`week3_day01_*`, `day_05_*`).
 5. Ссылки на коммиты → `git push origin master`.
 
 ## Результат

@@ -64,6 +64,68 @@ belongs_to_day() {
   [[ "$path" == "weeks/week-${week}/day-${day}/"* ]] || [[ "$path" == "journal/week-${week}/day-${day}.md" ]]
 }
 
+find_plan_for_day() {
+  local week="$1" day="$2"
+  local plans_dir=".cursor/plans"
+  local day_path="weeks/week-${week}/day-${day}"
+  local journal_path="journal/week-${week}/day-${day}.md"
+  local -a matches=()
+
+  shopt -s nullglob
+  for plan in "$plans_dir"/*.plan.md; do
+    if grep -qF "$day_path" "$plan" 2>/dev/null || grep -qF "$journal_path" "$plan" 2>/dev/null; then
+      matches+=("$plan")
+    fi
+  done
+  shopt -u nullglob
+
+  if [[ ${#matches[@]} -eq 1 ]]; then
+    printf '%s\n' "${matches[0]}"
+    return 0
+  fi
+  if [[ ${#matches[@]} -gt 1 ]]; then
+    echo "finish_day: несколько plan-файлов для week-${week}/day-${day}:" >&2
+    printf '  %s\n' "${matches[@]}" >&2
+    exit 1
+  fi
+
+  local week_num day_num
+  week_num=$((10#$week))
+  day_num=$((10#$day))
+  shopt -s nullglob
+  for plan in \
+    "$plans_dir"/week"${week_num}"*day"${day_num}"*.plan.md \
+    "$plans_dir"/week-"${week}"*day-"${day}"*.plan.md \
+    "$plans_dir"/day_"${day}"_*.plan.md \
+    "$plans_dir"/day-"${day}"_*.plan.md; do
+    matches+=("$plan")
+  done
+  shopt -u nullglob
+
+  if [[ ${#matches[@]} -eq 1 ]]; then
+    printf '%s\n' "${matches[0]}"
+    return 0
+  fi
+  if [[ ${#matches[@]} -gt 1 ]]; then
+    echo "finish_day: несколько plan-файлов по имени для week-${week}/day-${day}:" >&2
+    printf '  %s\n' "${matches[@]}" >&2
+    exit 1
+  fi
+  return 1
+}
+
+remove_from_array() {
+  local needle="$1"
+  shift
+  local -a src=("$@")
+  local -a out=()
+  local item
+  for item in "${src[@]}"; do
+    [[ "$item" == "$needle" ]] || out+=("$item")
+  done
+  printf '%s\n' "${out[@]}"
+}
+
 commit_url() {
   local sha="$1"
   local remote url
@@ -136,6 +198,16 @@ for f in "${DAY_FILES[@]}"; do
   fi
 done
 
+PLAN_FILE=""
+if PLAN_FILE="$(find_plan_for_day "$WEEK" "$DAY")"; then
+  mapfile -t EXTRA_FILES < <(remove_from_array "$PLAN_FILE" "${EXTRA_FILES[@]+"${EXTRA_FILES[@]}"}")
+  already=0
+  for f in "${DAY_ONLY[@]}"; do
+    [[ "$f" == "$PLAN_FILE" ]] && already=1 && break
+  done
+  [[ "$already" -eq 0 ]] && DAY_ONLY+=("$PLAN_FILE")
+fi
+
 if [[ -z "$MSG" ]]; then
   if [[ -f "$README" ]]; then
     summary="$(awk '
@@ -155,6 +227,11 @@ fi
 echo "finish_day: week-${WEEK}/day-${DAY}"
 echo "  extra files: ${#EXTRA_FILES[@]}"
 echo "  day files:   ${#DAY_ONLY[@]}"
+if [[ -n "$PLAN_FILE" ]]; then
+  echo "  plan file:   ${PLAN_FILE}"
+else
+  echo "  plan file:   (не найден в .cursor/plans/)"
+fi
 echo "  day message: ${MSG}"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
