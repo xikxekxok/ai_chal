@@ -95,3 +95,7 @@ python weeks/week-02/day-05/main.py --demo-compare --window 4
 - `--window 6` (default) — sliding намеренно теряет ранние решения к recall.
 - Facts: extra LLM-вызов на обновление KV; токены в `extra=` и таблице сравнения.
 - Branching: shared-префикс сохраняет бюджет/стек на обеих ветках.
+
+## Бонус
+
+[day-05-bonus](../day-05-bonus/) — **интервью LLM+LLM**: аналитик (агент) задаёт вопросы, клиент (LLM) отвечает; off-books.

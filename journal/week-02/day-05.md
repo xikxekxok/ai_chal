@@ -18,6 +18,8 @@
 
 - LLM задавал вопросы при захардкоженном сценарии → system prompt «секретарь, только фиксируй», сообщения как «Пункт N. …».
 
+- Бонус `day-05-bonus/`: LLM-клиент по транскрипту + brief тем; `complete_silent()` — не в `[tokens]`.
+
 ## Вывод
 
-Для видео: `--demo-compare` → `--clear --chat --strategy facts` (смотреть `[facts]`) → branching с `/fork`. Verify: `ruff check`, `--demo-compare-quick`.
+Для видео: `--demo-compare` → `--clear --chat --strategy facts` → branching. Бонус: `day-05-bonus --interview`.
