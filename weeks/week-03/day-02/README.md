@@ -27,10 +27,13 @@ python weeks/week-03/day-02/main.py --demo
 
 В начале каждой сессии — блок `[profile]`. Между сессиями `short` очищается; `working`, `long` и `profiles` накапливаются.
 
+По умолчанию реплики `[user]` и `[agent]` печатаются **поэтапно** (`[user]` ~2 с на реплику, `[agent]` — по мере генерации API). Отключить: `--no-stream`.
+
 Дополнительно:
 
 ```bash
 python weeks/week-03/day-02/main.py --chat
+python weeks/week-03/day-02/main.py --no-stream --demo
 python weeks/week-03/day-02/main.py --show-memory
 python weeks/week-03/day-02/main.py --clear profiles
 python weeks/week-03/day-02/main.py --clear short|working|all|all-long-reset
@@ -42,7 +45,7 @@ python weeks/week-03/day-02/main.py --clear short|working|all|all-long-reset
 
 - `[demo] что происходит` — агент, слои памяти + profiles, план прогона
 - `[profile]` — активный профиль в начале каждой сессии
-- `[user]` / `[agent]` — полные реплики
+- `[user]` / `[agent]` — полные реплики (по умолчанию поэтапно; `--no-stream` — сразу целиком)
 - `[memory] classifier → …` / `[profile] classifier → …` — куда сохранено
 - `[summary]` — саммари сессии (если есть)
 - `[retry]` — повтор запроса при таймауте/сети

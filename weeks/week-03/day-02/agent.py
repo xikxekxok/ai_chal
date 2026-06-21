@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from classifier import ClassifierResult, classify_turn
-from llm import LlmConfig, UsageTracker, complete
+from llm import LlmConfig, UsageTracker, complete, complete_stream
 from memory import MemoryStore
 from profiles import ProfileStore
 
@@ -66,9 +66,23 @@ class ShelterAgent:
         messages.append({"role": "user", "content": user_input})
         return messages
 
-    def run_turn(self, user_input: str) -> TurnResult:
+    def run_turn(
+        self,
+        user_input: str,
+        *,
+        stream: bool = False,
+        on_delta=None,
+    ) -> TurnResult:
         messages = self.build_messages(user_input)
-        reply, usage = complete(self.config, messages, tracker=self.tracker)
+        if stream:
+            reply, usage = complete_stream(
+                self.config,
+                messages,
+                on_delta=on_delta,
+                tracker=self.tracker,
+            )
+        else:
+            reply, usage = complete(self.config, messages, tracker=self.tracker)
         self.memory.short.add_turn(user_input, reply)
         self.memory.short.save()
         classifier = classify_turn(

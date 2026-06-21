@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from agent import ShelterAgent, create_agent
+from console_out import StreamPrinter, typewriter_print
 from llm import load_llm_config
 from memory import MemoryStore, slugify
 from profiles import ProfileStore
@@ -20,6 +21,15 @@ from user_sim import (
 )
 
 DATA_DIR = Path(__file__).parent / "data"
+
+
+def _ensure_utf8_stdout() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        try:
+            reconfigure(encoding="utf-8")
+        except (OSError, ValueError):
+            pass
 
 
 def print_profile_block(agent: ShelterAgent) -> None:
@@ -63,8 +73,26 @@ def print_demo_intro(agent: ShelterAgent) -> None:
         "Марта (приём Лапки) → доктор Клык (протокол) → директор (статус)."
     )
     print(f"[demo] model={agent.config.model}")
+    print("Реплики [user]/[agent] печатаются поэтапно; --no-stream — целиком.")
     print()
 
+
+def print_user_reply(user_text: str, *, streaming: bool) -> None:
+    if streaming:
+        typewriter_print("[user] ", user_text)
+    else:
+        print(f"[user] {user_text}\n")
+
+
+def print_agent_turn(agent: ShelterAgent, user_text: str, *, streaming: bool):
+    if streaming:
+        printer = StreamPrinter("[agent] ")
+        result = agent.run_turn(user_text, stream=True, on_delta=printer.on_delta)
+        printer.finish()
+    else:
+        result = agent.run_turn(user_text, stream=False)
+        print(f"[agent] {result.reply}\n")
+    return result
 
 def print_classifier_events(classifier_result) -> None:
     if classifier_result.applied:
@@ -92,6 +120,7 @@ def run_dialog(
     turns,
     *,
     profile_id: str,
+    streaming: bool,
 ) -> str:
     agent.active_profile_id = profile_id
     agent.profiles.load()
@@ -104,9 +133,8 @@ def run_dialog(
     transcript: list[dict[str, str]] = []
     for turn in turns:
         user_text = sim.generate(transcript, turn=turn)
-        print(f"[user] {user_text}\n")
-        result = agent.run_turn(user_text)
-        print(f"[agent] {result.reply}\n")
+        print_user_reply(user_text, streaming=streaming)
+        result = print_agent_turn(agent, user_text, streaming=streaming)
         print_classifier_events(result.classifier)
         transcript.append({"role": "user", "content": user_text})
         transcript.append({"role": "assistant", "content": result.reply})
@@ -179,7 +207,7 @@ def cmd_clear(target: str) -> None:
         print("[memory] long reset to default charter")
 
 
-def cmd_chat(agent: ShelterAgent) -> None:
+def cmd_chat(agent: ShelterAgent, *, streaming: bool) -> None:
     print("Интерактивный чат (пустая строка или /quit — выход).")
     print("Профиль по умолчанию: martha. Смена: /profile martha|klyk|director\n")
     print_profile_block(agent)
@@ -203,14 +231,14 @@ def cmd_chat(agent: ShelterAgent) -> None:
             else:
                 print(f"\n[profile] неизвестный профиль: {profile_id}")
             continue
-        result = agent.run_turn(user_text)
-        print(f"\n[agent] {result.reply}\n")
+        print()
+        result = print_agent_turn(agent, user_text, streaming=streaming)
         print_classifier_events(result.classifier)
         print_tokens(agent)
         print()
 
 
-def cmd_demo(config) -> None:
+def cmd_demo(config, *, streaming: bool) -> None:
     agent = create_agent(DATA_DIR, config)
     agent.memory.clear_working()
     agent.memory.reset_long()
@@ -232,6 +260,7 @@ def cmd_demo(config) -> None:
         "сессия 1/3 — Марта, приём Лапки",
         martha_lapka_turns(),
         profile_id="martha",
+        streaming=streaming,
     )
 
     print("\n[demo] --- новая сессия (short очищен, working/long/profiles сохранены) ---")
@@ -247,6 +276,7 @@ def cmd_demo(config) -> None:
         "сессия 2/3 — доктор Клык, протокол",
         klyk_lapka_turns(),
         profile_id="klyk",
+        streaming=streaming,
     )
 
     print("\n[demo] --- новая сессия (short очищен, working/long/profiles сохранены) ---")
@@ -262,6 +292,7 @@ def cmd_demo(config) -> None:
         "сессия 3/3 — директор, статус",
         director_lapka_turns(),
         profile_id="director",
+        streaming=streaming,
     )
 
     print("\n[memory] dump:")
@@ -273,6 +304,7 @@ def cmd_demo(config) -> None:
 
 
 def main() -> None:
+    _ensure_utf8_stdout()
     parser = argparse.ArgumentParser(description="Приют «Хvостik» — персонализация")
     parser.add_argument("--demo", action="store_true", help="три сессии для видео")
     parser.add_argument("--chat", action="store_true", help="интерактивный чат")
@@ -282,7 +314,13 @@ def main() -> None:
         choices=["short", "working", "profiles", "all", "all-long-reset"],
         help="очистить слой памяти или профили",
     )
+    parser.add_argument(
+        "--no-stream",
+        action="store_true",
+        help="печатать реплики целиком, без поэтапного вывода",
+    )
     args = parser.parse_args()
+    streaming = not args.no_stream
 
     if args.show_memory:
         cmd_show_memory()
@@ -296,10 +334,10 @@ def main() -> None:
 
     config = load_llm_config()
     if args.demo:
-        cmd_demo(config)
+        cmd_demo(config, streaming=streaming)
         return
     agent = create_agent(DATA_DIR, config)
-    cmd_chat(agent)
+    cmd_chat(agent, streaming=streaming)
 
 
 if __name__ == "__main__":

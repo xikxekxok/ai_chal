@@ -8,8 +8,5 @@
     "не паниковать из-за dead play — это норма",
     "нужны конкретные действия на смене"
   ],
-  "learned": {
-    "short_responses": "True",
-    "list_format_only": "True"
-  }
+  "learned": {}
 }
