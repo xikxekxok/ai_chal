@@ -4,9 +4,9 @@
 
 ## Перед коммитом
 
-1. `ruff check weeks/week-NN/day-DD/` и один smoke-test `main.py` (см. `verify-after-code.mdc`).
+1. `ruff check weeks/week-NN/day-DD/` и smoke-test **без LLM** (см. ниже и `verify-after-code.mdc`).
 2. Убедись, что `.env` не попадёт в коммит.
-3. **Все файлы дня в индексе:** `git status` — в `weeks/week-NN/day-DD/` и `journal/week-NN/day-DD.md` нет `??`. Перед скриптом: `git add weeks/week-NN/day-DD/ journal/week-NN/day-DD.md` — иначе `finish_day` может разнести staged/unstaged по разным коммитам.
+3. **Не делай `git add` до скрипта.** Иначе `finish_day` утащит уже staged файлы дня в extra-коммит `Update repo config and tooling.` вместо коммита задания. Оставь изменения **unstaged** (`??` / `modified`) — скрипт сам добавит файлы дня в коммит с `-m`.
 4. **Сброс runtime в `data/`** (неделя 3 и stateful-дни): после `--demo` / `--chat` не коммить артефакты прогона — только seed.
 
    ```bash
@@ -18,6 +18,8 @@
    ```
 
    Проверка: `git diff weeks/week-NN/day-DD/data/` — нет runtime-карточек, `learned` в profiles пустой, short пустой или seed.
+
+   **Smoke-test перед коммитом (без токенов API):** после `--clear` выше — `python weeks/week-NN/day-DD/main.py --show-memory` (exit 0). Полный `--demo` для finish_day **не** гонять.
 
 5. Опционально dry-run: `./scripts/finish_day.sh -n -m "..."` — посмотреть split extra/day до реального коммита.
 
