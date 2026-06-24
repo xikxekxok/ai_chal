@@ -1,0 +1,137 @@
+---
+description: Неделя 4 — Dockhost, Python CLI
+globs: weeks/week-04/**
+alwaysApply: false
+---
+
+# Неделя 4
+
+## Задания недели
+
+Задания **независимы**: у каждого дня свой фокус и своя кодовая база в `weeks/week-04/day-DD/`. **Единого домена и сквозного проекта нет** — не переноси код между днями и не выдумывай общий сюжет в правилах.
+
+Каждый `day-DD` — **самодостаточный** Python CLI-проект: свой `main.py`, `requirements.txt`, README.
+
+---
+
+## Лекция — опора для заданий
+
+Перед реализацией прочитай [week4_summary.md](lessons/week4_summary.md) и **ориентируйся на концепции лекции**.
+
+Если формулировка задания неясна — сопоставь её с разделами саммари и **уточни у пользователя**, какую технику из лекции нужно показать.
+
+Минимализм и демо на видео — см. `ai-advent.mdc`.
+
+---
+
+## Dockhost
+
+На **4-й неделе** LLM — через **[Dockhost Inference](https://docs.dockhost.ru/manual/ai/inference/use)**. API **OpenAI-compatible**: JSON POST на `/chat/completions`, без SDK.
+
+### Переменные окружения
+
+Ключ и настройки — в `.env` в **корне репозитория** (шаблон: `.env.example`):
+
+| Переменная | Назначение |
+|------------|------------|
+| `DOCKHOST_AI_KEY` | API-ключ (основной) |
+| `OPENAI_API_KEY` | запасной alias для ключа |
+| `OPENAI_BASE_URL` | по умолчанию `https://inference.dockhost.io/v1` |
+| `DOCKHOST_MODEL` | по умолчанию `deepseek/deepseek-v3.2` |
+
+В коде не хардкодить ключи. Загрузка `.env`:
+
+```python
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+```
+
+(`parents[3]` — из `weeks/week-04/day-DD/` в корень репо.)
+
+### Вызов API
+
+Минимальный паттерн — как в [неделе 1](../../weeks/week-01/day-01/main.py):
+
+```python
+response = requests.post(
+    f"{base_url}/chat/completions",
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        # temperature, max_tokens, response_format, tools — по заданию
+    },
+    timeout=45,
+)
+response.raise_for_status()
+content = response.json()["choices"][0]["message"]["content"]
+```
+
+- Эндпоинт: `{OPENAI_BASE_URL}/chat/completions`
+- Ответ: `choices[0].message.content`; usage — в `usage` (`prompt_tokens`, `completion_tokens`)
+
+### Сеть и ретраи
+
+Все вызовы LLM — через **одну** функцию `complete()` в `llm.py` (или аналог), не разрозненные `requests.post`.
+
+- **Timeout** на один запрос: ~**45 с** (не 120+).
+- **До 4 попыток**, пауза между ними: 2с → 4с → 6с.
+- Повтор при: таймаут, обрыв сети, HTTP **429 / 502 / 503 / 504**.
+- В stdout при повторе: `[retry] попытка N/M не удалась (таймаут|сеть|HTTP …), жду Xс…`
+
+### Практика
+
+- Зависимости дня: `requests`, `python-dotenv` в `requirements.txt`.
+- Python — см. `python.mdc` (3.11+, `main.py`, ruff, pytest по смыслу).
+- При отсутствии ключа — понятное сообщение в stderr и `sys.exit(1)`.
+- Запросы из sandbox Cursor к Dockhost могут требовать разрешения сети; локально обычно работает сразу.
+- Runtime-артефакты (кэш, логи прогона) — не коммитить; секреты не коммитить.
+
+---
+
+## Сквозная реализация
+
+### Границы дня (scope)
+
+Задание **day-DD не должно выходить за рамки этого дня** — ни в плане, ни в коде, ни в demo.
+
+В текущем `day-DD` **делаем и проверяем только**:
+
+1. то, что **явно описано в формулировке задания** этого дня;
+2. то, что **уже есть** в коде этого дня (без регрессий после правок).
+
+**Не реализуй заранее** темы следующих дней.
+
+### Структура дня
+
+- **Каждый день — отдельный проект.** Не копируй код из `week-03` или соседних `day-DD`, если README дня не требует явно.
+- Не выноси общий пакет на всю неделю и не импортируй из соседней папки дня.
+
+### Вывод в stdout
+
+- **Один запуск для видео:** `python weeks/week-04/day-DD/main.py [режим из README]` — весь сценарий в stdout.
+- В **начале demo** — блок «что происходит» и план прогона (метка `[demo]`).
+- Сокращать можно **служебное**: полные system prompt, большие JSON payloads — размер или фрагмент; `[tokens]` — цифры usage.
+- Явные метки: `[demo]`, `[retry]`, `[tokens]`, `[error]` — по теме дня; дополнительные — по README дня.
+- Ключевые результаты — **видны на видео** без обрезки.
+
+### Прочее
+
+- Smoke-test после кода — см. `verify-after-code.mdc` (`ruff check`, `pytest` если есть; один прогон `main.py` без лишних LLM-вызовов; режим без API — сначала он).
+- Один LLM-прогон на проверку интеграции; не гонять интерактив и полный `--demo` для smoke, если README не требует.
+
+---
+
+## Чего не делать
+
+- **Не выходить за scope дня** — см. «Границы дня»; не тащить в diff реализацию «на вырост».
+- **Не придумывать единый домен недели** — каждый день по своему README.
+- Не планировать и не реализовывать все дни в одном diff — только текущий `day-DD`.
+- Не копировать код между днями без явного требования задания.
+- Не хардкодить ключи и credentials.
+- Не дампить в stdout огромные промпты и payloads, если они не несут смысла для demo.
