@@ -92,12 +92,14 @@ find_plan_for_day() {
   local week_num day_num
   week_num=$((10#$week))
   day_num=$((10#$day))
+  # Fallback только по имени с номером недели (week4_day04_*), без day_04_* —
+  # иначе week-04/day-04 ловит day_04_compression (week-02).
   shopt -s nullglob
   for plan in \
     "$plans_dir"/week"${week_num}"*day"${day_num}"*.plan.md \
     "$plans_dir"/week-"${week}"*day-"${day}"*.plan.md \
-    "$plans_dir"/day_"${day}"_*.plan.md \
-    "$plans_dir"/day-"${day}"_*.plan.md; do
+    "$plans_dir"/week"${week_num}"_day"${day_num}"_*.plan.md \
+    "$plans_dir"/week-"${week}"_day-"${day}"_*.plan.md; do
     matches+=("$plan")
   done
   shopt -u nullglob
@@ -123,7 +125,9 @@ remove_from_array() {
   for item in "${src[@]}"; do
     [[ "$item" == "$needle" ]] || out+=("$item")
   done
-  printf '%s\n' "${out[@]}"
+  if ((${#out[@]} > 0)); then
+    printf '%s\n' "${out[@]}"
+  fi
 }
 
 commit_url() {
@@ -240,9 +244,13 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 EXTRA_SHA=""
-if [[ ${#EXTRA_FILES[@]} -gt 0 ]]; then
-  echo "→ коммит прочих изменений (${#EXTRA_FILES[@]} файлов)..."
-  git add -- "${EXTRA_FILES[@]}"
+EXTRA_TO_COMMIT=()
+for f in "${EXTRA_FILES[@]}"; do
+  [[ -n "$f" ]] && EXTRA_TO_COMMIT+=("$f")
+done
+if [[ ${#EXTRA_TO_COMMIT[@]} -gt 0 ]]; then
+  echo "→ коммит прочих изменений (${#EXTRA_TO_COMMIT[@]} файлов)..."
+  git add -- "${EXTRA_TO_COMMIT[@]}"
   git commit -m "$(cat <<EOF
 Update repo config and tooling.
 

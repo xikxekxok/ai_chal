@@ -54,7 +54,9 @@
 2. Несколько дней в diff → ошибка, коммит вручную.
 3. Прочие файлы (rules, AGENTS.md и т.д.) → отдельный коммит `Update repo config and tooling.`
 4. Файлы задания + **plan дня** из `.cursor/plans/` → коммит с `-m`.
-   Plan ищется по ссылкам на `weeks/week-NN/day-DD/` в содержимом; запасной вариант — по имени файла (`week3_day01_*`, `day_05_*`).
+   Plan ищется **сначала** по ссылкам на `weeks/week-NN/day-DD/` или `journal/week-NN/day-DD.md` в содержимом.
+   Fallback по имени — **только с номером недели**: `week4_day04_*`, `week-04_day-04_*` (не `day_04_*` — иначе week-04/day-04 ловит plan week-02).
+   Plan не найден — коммит задания без plan; это нормально.
 5. Ссылки на коммиты → `git push origin master`.
 
 ## Результат
