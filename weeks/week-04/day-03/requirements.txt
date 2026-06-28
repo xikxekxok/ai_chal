@@ -1,0 +1,7 @@
+mcp>=1.27,<2
+ddgs
+trafilatura
+httpx
+requests
+python-dotenv
+croniter>=2,<4
