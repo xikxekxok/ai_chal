@@ -27,6 +27,8 @@ QUERY_SYSTEM = (
     "- Must be fully self-contained: include entities, topics, and constraints from "
     "earlier turns when the current message uses pronouns or vague references "
     "(e.g. «из них», «подробнее», «а что насчёт»).\n"
+    "- Deictic/temporal words (тогда, потом, он/она, этот случай) → anchor the query "
+    "to the prior turn's event or topic from chat history.\n"
     "- Do NOT answer the question. Do NOT invent facts beyond what history + current "
     "message imply.\n"
     "- Opossum/possum in English, never raccoon.\n"
@@ -101,6 +103,28 @@ def _last_assistant_sources(history: list[Turn]) -> list[dict[str, str]]:
     return []
 
 
+def _anchor_follow_up_query(
+    standalone: str,
+    history: list[Turn],
+    session: SessionState,
+) -> str:
+    sources = _last_assistant_sources(history)
+    anchors: list[str] = []
+    if session.last_standalone_query_en:
+        anchors.append(session.last_standalone_query_en)
+    for src in sources[:2]:
+        title = src.get("title", "").strip()
+        section = src.get("section", "").strip()
+        if title and section:
+            anchors.append(f"{title} / {section}")
+        elif title:
+            anchors.append(title)
+    if not anchors:
+        return standalone
+    anchor_text = "; ".join(dict.fromkeys(anchors))
+    return f"{standalone} (context: {anchor_text})"
+
+
 def _anchor_synthesis_query(
     standalone: str,
     history: list[Turn],
@@ -139,6 +163,8 @@ def _parse_query_response(
     intent = _parse_intent(data.get("intent"), is_follow_up=is_follow_up)
     if intent == "synthesis":
         standalone = _anchor_synthesis_query(standalone, history, session)
+    elif intent == "follow_up" and is_follow_up:
+        standalone = _anchor_follow_up_query(standalone, history, session)
     if intent == "new_topic":
         is_follow_up = False
     return QueryResult(

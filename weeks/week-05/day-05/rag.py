@@ -213,6 +213,10 @@ def _parse_citations(raw: Any) -> list[Citation]:
 def _parse_response(raw: str) -> RagResponse:
     data = _extract_json(raw)
     sufficient = _parse_bool(data.get("context_sufficient"), default=True)
+    sources = _parse_sources(data.get("sources"))
+    citations = _parse_citations(data.get("citations"))
+    if sufficient and not sources:
+        sufficient = False
     hint = str(data.get("clarification_hint", "")).strip()
     if sufficient:
         hint = ""
@@ -220,8 +224,8 @@ def _parse_response(raw: str) -> RagResponse:
         answer=str(data.get("answer", "")).strip(),
         context_sufficient=sufficient,
         clarification_hint=hint,
-        sources=_parse_sources(data.get("sources")),
-        citations=_parse_citations(data.get("citations")),
+        sources=sources,
+        citations=citations,
     )
 
 
