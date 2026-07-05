@@ -11,6 +11,7 @@ import requests
 from console_out import print_tagged
 from dotenv import load_dotenv
 from requests.exceptions import ConnectionError, HTTPError, Timeout
+from run_log import get_run_log
 
 load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
@@ -65,11 +66,33 @@ def complete(
     *,
     timeout: int = DEFAULT_TIMEOUT,
     temperature: float | None = None,
+    stage: str | None = None,
+    log_message_chars: int = 16000,
+    log_response_chars: int = 4000,
 ) -> str:
     last_exc: BaseException | None = None
     payload: dict[str, object] = {"model": _model(), "messages": messages}
     if temperature is not None:
         payload["temperature"] = temperature
+    log = get_run_log()
+    if stage:
+        chars = sum(len(msg.get("content", "")) for msg in messages)
+        log.section(f"llm_call:{stage}")
+        log.kv("url", f"{_base_url()}/chat/completions", indent=1)
+        log.kv("model", _model(), indent=1)
+        log.kv("timeout", timeout, indent=1)
+        log.kv("messages", len(messages), indent=1)
+        log.kv("prompt_chars", chars, indent=1)
+        if temperature is not None:
+            log.kv("temperature", temperature, indent=1)
+        log.json_block(
+            "llm_request_summary",
+            [
+                {"index": index, "role": msg.get("role"), "chars": len(msg.get("content", ""))}
+                for index, msg in enumerate(messages, start=1)
+            ],
+        )
+        log.llm_messages(messages, max_chars=log_message_chars)
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = requests.post(
@@ -85,7 +108,14 @@ def complete(
                 response.raise_for_status()
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"].get("content") or ""
+            content = data["choices"][0]["message"].get("content") or ""
+            if stage:
+                usage = data.get("usage")
+                if isinstance(usage, dict):
+                    log.kv("usage", usage, indent=1)
+                log.kv("response_chars", len(content), indent=1)
+                log.block("llm_response", content, max_chars=log_response_chars)
+            return content
         except (Timeout, ConnectionError, HTTPError) as exc:
             last_exc = exc
             if not _should_retry(exc, attempt, MAX_RETRIES):
@@ -96,6 +126,8 @@ def complete(
                 "retry",
                 f"попытка {attempt}/{MAX_RETRIES} не удалась ({reason}), жду {wait:.0f}с…",
             )
+            if stage:
+                log.line(f"retry {attempt}/{MAX_RETRIES}: {reason}, wait {wait:.0f}s", indent=1)
             time.sleep(wait)
     if last_exc is not None:
         raise last_exc

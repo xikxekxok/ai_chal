@@ -11,8 +11,9 @@ from chat import RagChat, print_response
 from console_out import pause, print_index_line, print_tagged
 from embeddings import check_ollama
 from history import clear_history
-from paths import HISTORY_PATH, INDEX_PATH
+from paths import DAY_DIR, HISTORY_PATH, INDEX_PATH
 from pipeline import PipelineConfig
+from run_log import get_run_log, init_run_log
 from scenarios import ALL_SCENARIO_KEYS, SCENARIOS
 from store import load_index
 
@@ -121,6 +122,12 @@ def _run_scenario(
 ) -> None:
     scenario = SCENARIOS[key]
     chat.clear()
+    log = get_run_log()
+    log.section("scenario_start")
+    log.kv("key", key, indent=1)
+    log.kv("title", scenario.title, indent=1)
+    log.kv("turns", len(scenario.messages), indent=1)
+    log.blank()
     print_tagged("scenario", f"{'=' * 60}")
     print_tagged("scenario", f"сценарий {index}/{total}: {scenario.title}")
     print_tagged("scenario", f"реплик: {len(scenario.messages)}")
@@ -158,6 +165,31 @@ def cmd_ask(chat: RagChat, question: str) -> None:
     print_tagged("store", f"сохранено {chat.turn_count} сообщений")
 
 
+def _run_mode_name(args: argparse.Namespace) -> str:
+    if args.scenario:
+        return f"scenario-{args.scenario}"
+    if args.chat:
+        return "chat"
+    if args.ask:
+        return "ask"
+    return "run"
+
+
+def _init_agent_log(args: argparse.Namespace, *, chunks_count: int) -> None:
+    mode = _run_mode_name(args)
+    log = init_run_log(
+        mode,
+        retrieve_k=args.retrieve_k,
+        rag_k=args.rag_k,
+        min_score=args.min_score,
+        chunks_in_index=chunks_count,
+        no_pause=args.no_pause,
+    )
+    rel = log.path.relative_to(DAY_DIR)
+    print_tagged("log", f"файл: {rel}")
+    print()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="RAG chat with history and sources.")
     parser.add_argument("--chat", action="store_true", help="Interactive chat.")
@@ -172,6 +204,11 @@ def main() -> None:
         "--show-index",
         action="store_true",
         help="Show index stats (no Ollama/LLM).",
+    )
+    parser.add_argument(
+        "--analyze-last-run",
+        action="store_true",
+        help="Summarize latest logs/*.log for failures (no API).",
     )
     parser.add_argument("--no-pause", action="store_true", help="Scenario without pauses.")
     parser.add_argument("--retrieve-k", type=int, default=20, help="Top-K before rerank.")
@@ -188,6 +225,12 @@ def main() -> None:
         cmd_show_index()
         return
 
+    if args.analyze_last_run:
+        from analyze_run import run_analysis
+
+        sys.exit(run_analysis())
+        return
+
     if args.clear and not any((args.chat, args.scenario, args.ask)):
         cmd_clear()
         return
@@ -195,6 +238,7 @@ def main() -> None:
     data = load_index()
     check_ollama()
     cfg = _build_config(args)
+    _init_agent_log(args, chunks_count=len(data["chunks"]))
     chat = RagChat(data["chunks"], cfg)
 
     if args.clear:

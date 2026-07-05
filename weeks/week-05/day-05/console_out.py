@@ -22,6 +22,7 @@ TAG_STYLE: dict[str, str] = {
     "citations": "1;96",
     "retry": "91",
     "error": "91",
+    "log": "90",
 }
 
 BODY_STYLE: dict[str, str] = {

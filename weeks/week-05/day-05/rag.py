@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from console_out import print_tagged
-from history import Turn, history_for_llm
+from history import Turn
 from llm import complete
+from run_log import get_run_log
 from translate import OPOSSUM_TERMS
 
 RagMode = Literal["rerank"]
@@ -15,8 +16,9 @@ CHAT_TEMPERATURE = 0.35
 
 RAG_SYSTEM = (
     "You are a knowledgeable, friendly chat assistant about opossums.\n"
-    "You answer using ONLY the reference material below (English text).\n"
-    "Do not invent facts beyond the excerpts.\n"
+    "You answer using ONLY the Evidence excerpts below (English text).\n"
+    "The Conversation block is for continuity only — never cite it as a factual source.\n"
+    "Do not invent facts beyond the Evidence excerpts.\n"
     "Return ONLY valid JSON — no markdown fences, no extra text.\n"
     "Schema:\n"
     "{\n"
@@ -31,20 +33,25 @@ RAG_SYSTEM = (
     "  ]\n"
     "}\n"
     "Rules for context_sufficient:\n"
-    "- true ONLY when the excerpts contain enough facts to answer the question directly.\n"
-    "- false when: no material, material is off-topic, or excerpts mention the topic "
-    "but do NOT contain the actual answer.\n"
-    "- false when retrieval hint says context is weak and excerpts do not clearly answer.\n"
+    "- true when Evidence contains relevant facts that answer the question, including "
+    "follow-ups that refer to the same topic as Conversation.\n"
+    "- true when a table or list in Evidence lets you infer the answer cautiously "
+    "(e.g. ranking, counts, first/second place) — cite the supporting excerpt.\n"
+    "- false ONLY when Evidence is empty, wholly off-topic, or clearly lacks the "
+    "specific fact asked for.\n"
+    "- Do NOT set false just because rerank scores are moderate — read the excerpts.\n"
     "When context_sufficient is false:\n"
-    '- answer MUST start with "Я не знаю"; briefly explain what is missing in the excerpts '
+    '- answer MUST start with "Я не знаю"; briefly explain what is missing in Evidence '
     "(2-4 sentences, no invented facts).\n"
     "- clarification_hint: tell the user what to rephrase or specify.\n"
     "- sources and citations MUST be empty arrays [].\n"
     "When context_sufficient is true:\n"
     "- answer: natural, conversational Russian — like a confident expert in chat.\n"
     "- length: as much as needed — from a short reply to a detailed answer (up to ~20 "
-    "sentences) when the excerpts support it.\n"
-    "- you may refer briefly to earlier chat turns when relevant, but facts only from excerpts.\n"
+    "sentences) when Evidence supports it.\n"
+    "- you may refer briefly to earlier chat turns for continuity, but every fact must "
+    "come from Evidence excerpts.\n"
+    "- NEVER say you lack access to a prior answer, another study, or chat history.\n"
     "- clarification_hint: empty string.\n"
     "- sources: one entry per chunk you rely on.\n"
     "- citations: verbatim English quotes (short, 1–3 sentences).\n"
@@ -102,16 +109,44 @@ def _build_retrieval_hint(
 ) -> str:
     if not hits:
         return (
-            f"Retrieval: 0 chunks above min_score={min_score}. "
-            "Context is weak — set context_sufficient=false unless excerpts clearly answer."
+            f"Retrieval note: 0 chunks passed rerank min_score={min_score}. "
+            "If Evidence is empty, set context_sufficient=false."
         )
     scores = [float(h.get("rerank_score", 0)) for h in hits]
     top = max(scores)
-    strength = "strong" if top >= 0.35 else "moderate" if top >= min_score else "weak"
     return (
-        f"Retrieval: {len(hits)} chunk(s) above min_score={min_score}; "
-        f"top rerank_score={top:.3f} ({strength}). "
-        "If excerpts do not directly answer the question, set context_sufficient=false."
+        f"Retrieval note: {len(hits)} Evidence chunk(s); top rerank_score={top:.3f}. "
+        "Judge sufficiency from excerpt content, not score alone."
+    )
+
+
+def _format_conversation(history: list[Turn], *, max_turns: int = 10) -> str:
+    if not history:
+        return "(no prior conversation)"
+    lines: list[str] = []
+    for turn in history[-max_turns:]:
+        if turn.role not in {"user", "assistant"} or not turn.content.strip():
+            continue
+        label = "User" if turn.role == "user" else "Assistant"
+        lines.append(f"{label}: {turn.content}")
+    return "\n".join(lines) if lines else "(no prior conversation)"
+
+
+def _build_user_message(
+    *,
+    hint: str,
+    conversation: str,
+    evidence: str,
+    question_en: str,
+) -> str:
+    return (
+        f"{hint}\n\n"
+        "=== Conversation (continuity only, NOT a factual source) ===\n"
+        f"{conversation}\n\n"
+        "=== Evidence (ONLY source of facts; cite these) ===\n"
+        f"{evidence}\n\n"
+        "=== Question ===\n"
+        f"{question_en}"
     )
 
 
@@ -197,21 +232,40 @@ def generate_with_rag(
     history: list[Turn] | None = None,
     min_score: float = 0.15,
 ) -> RagResponse:
-    context = _format_context(hits)
+    evidence = _format_context(hits)
     hint = _build_retrieval_hint(hits, min_score=min_score)
-    messages: list[dict[str, str]] = [{"role": "system", "content": RAG_SYSTEM}]
-    messages.extend(history_for_llm(history or [], max_turns=10))
-    messages.append(
-        {
-            "role": "user",
-            "content": (f"{hint}\n\nReference material:\n{context}\n\nQuestion: {question_en}"),
-        }
+    conversation = _format_conversation(history or [], max_turns=10)
+    user_content = _build_user_message(
+        hint=hint,
+        conversation=conversation,
+        evidence=evidence,
+        question_en=question_en,
     )
-    raw = complete(messages, temperature=CHAT_TEMPERATURE)
+    log = get_run_log()
+    log.block("rag_retrieval_hint", hint)
+    log.block("rag_conversation", conversation, max_chars=4000)
+    log.hits("rag_context_chunks", hits, limit=10)
+    for index, hit in enumerate(hits[:4], start=1):
+        text = str(hit.get("text", ""))
+        log.block(f"rag_chunk_{index}_text", text, max_chars=1200)
+
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": RAG_SYSTEM},
+        {"role": "user", "content": user_content},
+    ]
+    log.kv("rag_history_turns", len(history or []))
+    raw = complete(
+        messages,
+        temperature=CHAT_TEMPERATURE,
+        stage="rag",
+        log_message_chars=25000,
+        log_response_chars=5000,
+    )
     try:
         response = _parse_response(raw)
     except (ValueError, json.JSONDecodeError):
         print_tagged("retry", "RAG JSON parse failed, retrying once")
+        log.line("RAG JSON parse failed, retrying once", indent=1)
         retry_messages = messages + [
             {"role": "assistant", "content": raw},
             {
@@ -219,7 +273,13 @@ def generate_with_rag(
                 "content": "Return ONLY valid JSON matching the schema. No markdown.",
             },
         ]
-        raw = complete(retry_messages, temperature=0)
+        raw = complete(
+            retry_messages,
+            temperature=0,
+            stage="rag_retry",
+            log_message_chars=25000,
+            log_response_chars=5000,
+        )
         response = _parse_response(raw)
 
     return response

@@ -97,7 +97,7 @@ opossum / wild fruit / scat / autumn; ответ «виноград» + sources 
 
 ### Шаг 2. Session state (метаданные retrieval)
 
-**Статус:** [ ] не сделано
+**Статус:** [x] сделано
 
 **Что:** расширить `chat_history.json` (или отдельный блок `session`):
 
@@ -123,7 +123,7 @@ opossum / wild fruit / scat / autumn; ответ «виноград» + sources 
 
 ### Шаг 3. Retrieve fusion
 
-**Статус:** [ ] не сделано
+**Статус:** [x] сделано
 
 **Что:** не один `retrieve(query)`, а объединение кандидатов:
 
@@ -143,7 +143,7 @@ opossum / wild fruit / scat / autumn; ответ «виноград» + sources 
 
 ### Шаг 4. Context assembly (Evidence vs Conversation)
 
-**Статус:** [ ] не сделано
+**Статус:** [x] сделано
 
 **Что:** в `rag.py` явно разделить блоки в финальном user-message:
 
@@ -170,7 +170,7 @@ opossum / wild fruit / scat / autumn; ответ «виноград» + sources 
 
 ### Шаг 5. Grounding policy для follow-up
 
-**Статус:** [ ] не сделано
+**Статус:** [x] сделано
 
 **Что:** уточнить RAG_SYSTEM:
 
@@ -186,7 +186,7 @@ opossum / wild fruit / scat / autumn; ответ «виноград» + sources 
 
 ### Шаг 6 (опционально). Intent / new topic
 
-**Статус:** [ ] не сделано
+**Статус:** [x] сделано
 
 **Что:** в query processor добавить `intent`: `new_topic` | `follow_up` |
 `clarification`. При `new_topic` — не подмешивать sticky chunks.
@@ -231,4 +231,4 @@ opossum / wild fruit / scat / autumn; ответ «виноград» + sources 
 - Изначально без rewrite и wide fallback — осознанно.
 - Температура RAG: 0.35; длина ответа до ~20 предложений.
 - Баг follow-up воспроизведён на «А какой из них был на первом месте?».
-- Следующий шаг для внедрения: **Шаг 2 — Session state**.
+- Следующий шаг для внедрения: **прогон сценария 1** — проверить follow-up «А какой из них…».
