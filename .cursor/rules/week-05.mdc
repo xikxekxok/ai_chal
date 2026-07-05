@@ -17,6 +17,7 @@ alwaysApply: false
 
 - **day-01** строит индекс (`main.py --index`).
 - **day-02 … day-05** — **обязаны** использовать уже построенный `opossum_index.json`; свой индекс, другой корпус или повторный `--index` в коде дня **не делаем** (если README дня явно не требует иного).
+- **НЕЛЬЗЯ УДАЛЯТЬ ИНДЕКС** (`opossum_index.json`) — ни в один день недели, ни в коде, ни вручную.
 - Путь к индексу один на всю неделю:
 
 ```python
@@ -27,7 +28,6 @@ INDEX_PATH = Path(__file__).resolve().parents[2] / "data" / "opossum_index.json"
 - Код каждого дня — свой (`main.py`, модули retrieve/RAG и т.д.), **без импортов** из соседних `day-DD/`; индекс **читаем** локально по `INDEX_PATH`, схему — см. ниже.
 - Перед первым `--index`: `python weeks/week-05/day-01/init_data.py`.
 - Если индекса нет — понятная ошибка: «сначала day-01: init_data.py → main.py --index».
-- Перед `/finish_day` **day-01**: `main.py --clear` (удаляет индекс локально); smoke — `--show-index` **без Ollama**. На day-02+ индекс **не** удаляем — он нужен следующим дням.
 
 ---
 
@@ -128,7 +128,7 @@ content = response.json()["choices"][0]["message"]["content"]
 
 Перед `--index` убедись, что Ollama запущен и модель скачана (`ollama pull nomic-embed-text`).
 
-При недоступном Ollama — `[error]` в stderr; smoke без API: `--show-index`, `--clear`.
+При недоступном Ollama — `[error]` в stderr; smoke без API: `--show-index`.
 
 Эмбеддинги и генерация — **разные** вызовы: не смешивать в одной функции `complete()`.
 
@@ -150,7 +150,6 @@ Chunking day-01: `strategy=overlap`, `chunk_chars=3200`, `overlap_chars=320`.
 
 - Ориентир лекции: **500–1000 токенов** на чанк, **overlap** на границах.
 - Seed/raw — локально в `weeks/week-05/data/`; **runtime-индекс** — **не коммитить**.
-- Перед `/finish_day`: `--clear` индекса по README дня.
 
 ---
 
@@ -169,13 +168,14 @@ Chunking day-01: `strategy=overlap`, `chunk_chars=3200`, `overlap_chars=320`.
 На **5-й неделе** сценарий **`--demo` не используем** — ни в коде, ни для smoke-test, ни для видео.
 
 - **Сдача на видео:** команды из **README дня** (`--index`, `--ask`, `--chat` и т.п.); весь сценарий виден в stdout.
-- **Smoke-test** (Cursor, `/finish_day`): режим **без LLM/Ollama** из README (`--show-index`, `--clear`); **не** полный `--index` для pre-commit.
+- **Smoke-test** (Cursor, `/finish_day`): режим **без LLM/Ollama** из README (`--show-index`); **не** полный `--index` для pre-commit.
 - Метки: `[init]`, `[index]`, `[retrieve]`, `[rerank]`, `[rag]`, `[retry]`, `[error]`.
 
 ---
 
 ## Чего не делать
 
+- **НЕЛЬЗЯ УДАЛЯТЬ ИНДЕКС** — `weeks/week-05/data/opossum_index.json` не удалять.
 - **Не выходить за scope дня** — см. «Границы дня».
 - **Не строить свой индекс** на day-02+ — только читать `opossum_index.json` из day-01.
 - **Не вводить `--demo`** без явного требования README.
