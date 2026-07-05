@@ -55,7 +55,6 @@ python weeks/week-05/day-01/main.py --index
 
 # без Ollama
 python weeks/week-05/day-01/main.py --show-index
-python weeks/week-05/day-01/main.py --clear
 ```
 
 ## Метаданные чанка
@@ -78,8 +77,6 @@ python weeks/week-05/day-01/main.py --clear
 |------|------------|-----|
 | `weeks/week-05/data/raw/` | 8 × `{id}.txt` | нет (gitignore) |
 | `weeks/week-05/data/opossum_index.json` | индекс недели | нет (gitignore) |
-
-Перед `/finish_day`: `main.py --clear` (удаляет индекс). Raw остаётся локально.
 
 ## Статус
 

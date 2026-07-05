@@ -12,13 +12,7 @@ from embeddings import check_ollama, embed_text
 from paths import INDEX_PATH, RAW_DIR
 from progress import EmbedProgress, StageTimer
 from sources import BOOKS
-from store import (
-    build_index,
-    clear_index,
-    format_size_mb,
-    load_index,
-    save_index,
-)
+from store import build_index, format_size_mb, load_index, save_index
 
 
 def expected_filenames() -> str:
@@ -145,28 +139,17 @@ def cmd_show_index() -> None:
     print(f"[index] created_at: {data.get('created_at', 'n/a')}")
 
 
-def cmd_clear() -> None:
-    removed = clear_index()
-    if removed:
-        print(f"[index] cleared: {INDEX_PATH}")
-    else:
-        print(f"[index] nothing to clear: {INDEX_PATH} not found")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Index opossum corpus: chunk → embed → JSON.")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--index", action="store_true", help="Build index from raw texts.")
     group.add_argument("--show-index", action="store_true", help="Show index stats (no Ollama).")
-    group.add_argument("--clear", action="store_true", help="Remove opossum_index.json.")
     args = parser.parse_args()
 
     if args.index:
         cmd_index()
     elif args.show_index:
         cmd_show_index()
-    elif args.clear:
-        cmd_clear()
 
 
 if __name__ == "__main__":

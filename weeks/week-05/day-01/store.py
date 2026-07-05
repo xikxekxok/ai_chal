@@ -88,13 +88,6 @@ def save_index(data: dict[str, Any]) -> None:
     temp_path.replace(INDEX_PATH)
 
 
-def clear_index() -> bool:
-    if not index_exists():
-        return False
-    INDEX_PATH.unlink()
-    return True
-
-
 def format_size_mb(path: Path) -> str:
     size = path.stat().st_size
     return f"{size / (1024 * 1024):.1f} MB"
