@@ -47,3 +47,6 @@ weeks/week-02/day-05-bonus/chat_history.json
 
 # Gutenberg corpus cache (week 2 day 3)
 weeks/week-02/day-03/.cache/
+
+# Week 5 RAG corpus + index (local only)
+weeks/week-05/data/

@@ -1,0 +1,193 @@
+---
+description: Неделя 5 — RAG, эмбеддинги, Ollama, Dockhost, сквозной корпус опоссумов
+globs: weeks/week-05/**
+alwaysApply: false
+---
+
+# Неделя 5
+
+## Сквозной корпус недели
+
+Тема недели — **опоссумы**: 8 книг Project Gutenberg (~1.5 MB). Каталог — `weeks/week-05/day-01/sources.py`.
+
+| Путь | Назначение | Git |
+|------|------------|-----|
+| `weeks/week-05/data/raw/{id}.txt` | raw после `init_data.py` | **нет** (gitignore) |
+| `weeks/week-05/data/opossum_index.json` | JSON-индекс на всю неделю | **нет** (gitignore) |
+
+- **day-01** строит индекс (`main.py --index`).
+- **day-02 … day-05** — **обязаны** использовать уже построенный `opossum_index.json`; свой индекс, другой корпус или повторный `--index` в коде дня **не делаем** (если README дня явно не требует иного).
+- Путь к индексу один на всю неделю:
+
+```python
+INDEX_PATH = Path(__file__).resolve().parents[2] / "data" / "opossum_index.json"
+# из weeks/week-05/day-DD/ → weeks/week-05/data/opossum_index.json
+```
+
+- Код каждого дня — свой (`main.py`, модули retrieve/RAG и т.д.), **без импортов** из соседних `day-DD/`; индекс **читаем** локально по `INDEX_PATH`, схему — см. ниже.
+- Перед первым `--index`: `python weeks/week-05/day-01/init_data.py`.
+- Если индекса нет — понятная ошибка: «сначала day-01: init_data.py → main.py --index».
+- Перед `/finish_day` **day-01**: `main.py --clear` (удаляет индекс локально); smoke — `--show-index` **без Ollama**. На day-02+ индекс **не** удаляем — он нужен следующим дням.
+
+---
+
+## Задания недели
+
+Каждый `day-DD` — **самодостаточный** Python CLI в `weeks/week-05/day-DD/`: свой `main.py`, `requirements.txt`, README. Не копируй код между днями без явного требования README.
+
+**Сквозная зависимость:** day-02+ строят retrieve / rerank / RAG **поверх** индекса day-01 (`chunks[]`, `meta`, `embedding` из JSON). Не дублируй chunking и embed-пайплайн — только чтение и поиск по готовому индексу (+ генерация через Dockhost, где требует задание).
+
+---
+
+## Лекция — опора для заданий
+
+Перед реализацией прочитай [week5_summary.md](lessons/week5_summary.md) и **ориентируйся на концепции лекции**.
+
+Если формулировка задания неясна — сопоставь её с разделами саммари и **уточни у пользователя**, какую технику из лекции нужно показать.
+
+Минимализм и сдача на видео — см. `ai-advent.mdc`.
+
+---
+
+## RAG — общий контекст недели
+
+**RAG** — подгрузка релевантных **чанков** из внутренней базы знаний в prompt LLM **во время инференса**. Это не MCP: retrieve → контекст в prompt, а не tool call к внешнему API.
+
+Подробности — в [week5_summary.md](lessons/week5_summary.md).
+
+---
+
+## Dockhost (генеративная LLM)
+
+**Генерация ответов** — через **[Dockhost Inference](https://docs.dockhost.ru/manual/ai/inference/use)**. API **OpenAI-compatible**: JSON POST на `/chat/completions`, без SDK.
+
+### Переменные окружения
+
+Ключ и настройки — в `.env` в **корне репозитория** (шаблон: `.env.example`):
+
+| Переменная | Назначение |
+|------------|------------|
+| `DOCKHOST_AI_KEY` | API-ключ (основной) |
+| `OPENAI_API_KEY` | запасной alias для ключа |
+| `OPENAI_BASE_URL` | по умолчанию `https://inference.dockhost.io/v1` |
+| `DOCKHOST_MODEL` | по умолчанию `deepseek/deepseek-v3.2` |
+
+В коде не хардкодить ключи. Загрузка `.env`:
+
+```python
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+```
+
+(`parents[3]` — из `weeks/week-05/day-DD/` в корень репо.)
+
+### Вызов API
+
+Минимальный паттерн — как в [неделе 1](../../weeks/week-01/day-01/main.py):
+
+```python
+response = requests.post(
+    f"{base_url}/chat/completions",
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+    },
+    timeout=45,
+)
+response.raise_for_status()
+content = response.json()["choices"][0]["message"]["content"]
+```
+
+### Сеть и ретраи
+
+Все вызовы **генеративной** LLM — через **одну** функцию `complete()` в `llm.py` (или аналог).
+
+- **Timeout** на один запрос: ~**45 с**.
+- **До 4 попыток**, пауза: 2с → 4с → 6с.
+- Повтор при: таймаут, обрыв сети, HTTP **429 / 502 / 503 / 504**.
+- В stdout при повторе: `[retry] попытка N/M не удалась (таймаут|сеть|HTTP …), жду Xс…`
+
+---
+
+## Ollama (эмбеддинги)
+
+**Эмбеддинги** — через **Ollama** локально (рекомендация лекции).
+
+| Параметр | Ориентир |
+|----------|----------|
+| URL | `http://localhost:11434` (`OLLAMA_BASE_URL` на VPS) |
+| Эндпоинт | `POST /api/embeddings` |
+| Модель | `nomic-embed-text` (`OLLAMA_EMBED_MODEL`) |
+| dim | 768 |
+
+Перед `--index` убедись, что Ollama запущен и модель скачана (`ollama pull nomic-embed-text`).
+
+При недоступном Ollama — `[error]` в stderr; smoke без API: `--show-index`, `--clear`.
+
+Эмбеддинги и генерация — **разные** вызовы: не смешивать в одной функции `complete()`.
+
+---
+
+## Индекс day-01 (JSON schema)
+
+Корень `opossum_index.json`: `version`, `corpus`, `created_at`, `chunking`, `embedding`, `stats`, `sources[]`, `chunks[]`.
+
+Chunking day-01: `strategy=overlap`, `chunk_chars=3200`, `overlap_chars=320`.
+
+Элемент `chunks[]`: `{text, embedding, meta}` — **не** дублировать `text`/`embedding` в `meta`.
+
+Поля `meta`: `chunk_id`, `source_id`, `title`, `author`, `section`, `char_count`, `start_offset`, `end_offset`.
+
+---
+
+## Чанкинг и индекс
+
+- Ориентир лекции: **500–1000 токенов** на чанк, **overlap** на границах.
+- Seed/raw — локально в `weeks/week-05/data/`; **runtime-индекс** — **не коммитить**.
+- Перед `/finish_day`: `--clear` индекса по README дня.
+
+---
+
+## Границы дня (scope)
+
+Задание **day-DD не должно выходить за рамки этого дня** — ни в плане, ни в коде.
+
+**Не реализуй заранее** темы следующих дней (rerank, если день про retrieve; полный агент, если день про индекс).
+
+**Исключение — общий индекс:** использование `opossum_index.json` из day-01 в day-02+ **не** считается выходом за scope; это обязательная сквозная часть недели.
+
+---
+
+## Без demo-режима
+
+На **5-й неделе** сценарий **`--demo` не используем** — ни в коде, ни для smoke-test, ни для видео.
+
+- **Сдача на видео:** команды из **README дня** (`--index`, `--ask`, `--chat` и т.п.); весь сценарий виден в stdout.
+- **Smoke-test** (Cursor, `/finish_day`): режим **без LLM/Ollama** из README (`--show-index`, `--clear`); **не** полный `--index` для pre-commit.
+- Метки: `[init]`, `[index]`, `[retrieve]`, `[rerank]`, `[rag]`, `[retry]`, `[error]`.
+
+---
+
+## Чего не делать
+
+- **Не выходить за scope дня** — см. «Границы дня».
+- **Не строить свой индекс** на day-02+ — только читать `opossum_index.json` из day-01.
+- **Не вводить `--demo`** без явного требования README.
+- Не планировать все дни в одном diff — только текущий `day-DD`.
+- Не копировать код между днями без явного требования.
+- Не хардкодить ключи и credentials.
+- Не коммитить `weeks/week-05/data/`.
+- Не дампить в stdout огромные промпты, векторы и payloads.
+
+---
+
+## Прочее
+
+- Smoke-test после кода — см. `verify-after-code.mdc` (`ruff check`, `pytest` если есть; `--show-index` без Ollama; **без `--demo`**).
+- Один интеграционный прогон с Ollama на проверку — достаточно; не гонять длинный `--chat` для smoke.
