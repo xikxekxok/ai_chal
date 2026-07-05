@@ -7,7 +7,6 @@ from typing import Any
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
 DEFAULT_MODEL = "cross-encoder/ms-marco-MiniLM-L6-v2"
-CHUNK_TEXT_LIMIT = 1500
 
 _model: Any | None = None
 
@@ -42,7 +41,7 @@ def rerank_filter(
         return [], []
 
     model = _load_model()
-    pairs = [(query_en, (item.get("text") or "")[:CHUNK_TEXT_LIMIT]) for item in candidates]
+    pairs = [(query_en, item.get("text") or "") for item in candidates]
     scores = model.predict(pairs, show_progress_bar=False)
 
     scored: list[dict[str, Any]] = []

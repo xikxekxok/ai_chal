@@ -6,8 +6,6 @@ from llm import complete
 from retrieve import retrieve
 from translate import OPOSSUM_TERMS, translate_to_en
 
-CONTEXT_PREVIEW = 600
-
 RAG_INSTRUCTIONS = (
     "You answer the user's question in Russian.\n"
     "Use ONLY the reference material below (English text). Do not invent facts.\n"
@@ -26,13 +24,10 @@ def _format_context(chunks: list[dict[str, Any]]) -> str:
     parts: list[str] = []
     for chunk in chunks:
         text = chunk.get("text") or ""
-        preview = text[:CONTEXT_PREVIEW]
-        if len(text) > CONTEXT_PREVIEW:
-            preview += "…"
         parts.append(
             f"Book: {chunk.get('title')}\n"
             f"Section: {chunk.get('section')}\n"
-            f"{preview}"
+            f"{text}"
         )
     return "\n---\n".join(parts)
 
