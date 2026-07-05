@@ -95,8 +95,15 @@ class RagChat:
             )
         )
         new_chunk_ids = [src.chunk_id for src in response.sources if src.chunk_id]
+        if not new_chunk_ids and result.rag_hits:
+            new_chunk_ids = [
+                str(hit.get("chunk_id", ""))
+                for hit in result.rag_hits
+                if hit.get("chunk_id")
+            ]
         self._session = SessionState(
             last_standalone_query_en=result.question_en,
+            last_base_query_en=result.base_query_en,
             last_chunk_ids=new_chunk_ids,
             recent_chunk_ids=merge_recent_chunk_ids(
                 self._session.recent_chunk_ids,

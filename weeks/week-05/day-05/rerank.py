@@ -41,6 +41,18 @@ def _sort_key(
     return -score, 0, 0
 
 
+def _sticky_same_section_pair(sticky_ranked: list[dict[str, Any]]) -> bool:
+    if len(sticky_ranked) < 2:
+        return False
+    counts: dict[tuple[str, str], int] = {}
+    for item in sticky_ranked:
+        key = (str(item.get("source_id", "")), str(item.get("section", "")))
+        counts[key] = counts.get(key, 0) + 1
+        if counts[key] >= 2:
+            return True
+    return False
+
+
 def _load_model() -> Any:
     global _model
     if _model is not None:
@@ -101,7 +113,7 @@ def rerank_filter(
         source_id = str(item.get("source_id", ""))
         if source_id and source_id in sticky_source_ids:
             score += source_boost
-        if ecology_drift and source_id == ECOLOGY_SOURCE_ID:
+        if ecology_drift and source_id == ECOLOGY_SOURCE_ID and chunk_id not in sticky_ids:
             score -= ECOLOGY_DRIFT_PENALTY
         if chunk_id in sticky_ids:
             score = max(score, sticky_floor)
@@ -133,7 +145,12 @@ def rerank_filter(
         all_sticky_at_floor = all(
             abs(float(item["rerank_score"]) - sticky_floor) < 1e-6 for item in sticky_ranked
         )
-        sticky_slots = min(2 if all_sticky_at_floor else 1, top_k, len(sticky_ranked))
+        same_section_pair = _sticky_same_section_pair(sticky_ranked)
+        sticky_slots = min(
+            2 if (all_sticky_at_floor or same_section_pair) else 1,
+            top_k,
+            len(sticky_ranked),
+        )
         sticky_ranked.sort(key=sort_key)
         for item in sticky_ranked[:sticky_slots]:
             chunk_id = str(item.get("chunk_id", ""))

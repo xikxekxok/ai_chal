@@ -24,6 +24,7 @@ class PipelineConfig:
 class PipelineResult:
     question_ru: str
     question_en: str
+    base_query_en: str = ""
     is_follow_up: bool = False
     intent: QueryIntent = "follow_up"
     retrieve_hits: list[dict[str, Any]] = field(default_factory=list)
@@ -135,6 +136,7 @@ def run_pipeline(
     return PipelineResult(
         question_ru=question_ru,
         question_en=question_en,
+        base_query_en=query_result.base_query_en,
         is_follow_up=query_result.is_follow_up,
         intent=query_result.intent,
         retrieve_hits=hits,

@@ -42,9 +42,25 @@ QUERY_SYSTEM = (
 )
 
 
+_CONTEXT_SUFFIX_RE = re.compile(r"\s*\(context:.*\)\s*$", re.DOTALL)
+
+
+def _strip_context_suffix(text: str) -> str:
+    return _CONTEXT_SUFFIX_RE.sub("", text).strip()
+
+
+def _source_anchor(src: dict[str, str]) -> str:
+    title = src.get("title", "").strip()
+    section = src.get("section", "").strip()
+    if title and section:
+        return f"{title} / {section}"
+    return title
+
+
 @dataclass
 class QueryResult:
     standalone_query_en: str
+    base_query_en: str
     is_follow_up: bool
     intent: QueryIntent = "follow_up"
 
@@ -108,21 +124,14 @@ def _anchor_follow_up_query(
     history: list[Turn],
     session: SessionState,
 ) -> str:
+    standalone = _strip_context_suffix(standalone)
     sources = _last_assistant_sources(history)
-    anchors: list[str] = []
-    if session.last_standalone_query_en:
-        anchors.append(session.last_standalone_query_en)
-    for src in sources[:2]:
-        title = src.get("title", "").strip()
-        section = src.get("section", "").strip()
-        if title and section:
-            anchors.append(f"{title} / {section}")
-        elif title:
-            anchors.append(title)
-    if not anchors:
+    anchor = _source_anchor(sources[0]) if sources else ""
+    if not anchor:
+        anchor = _strip_context_suffix(session.last_base_query_en)
+    if not anchor:
         return standalone
-    anchor_text = "; ".join(dict.fromkeys(anchors))
-    return f"{standalone} (context: {anchor_text})"
+    return f"{standalone} (context: {anchor})"
 
 
 def _anchor_synthesis_query(
@@ -130,19 +139,17 @@ def _anchor_synthesis_query(
     history: list[Turn],
     session: SessionState,
 ) -> str:
+    standalone = _strip_context_suffix(standalone)
     sources = _last_assistant_sources(history)
-    if not sources:
-        return standalone
     anchors: list[str] = []
     for src in sources[:2]:
-        title = src.get("title", "").strip()
-        section = src.get("section", "").strip()
-        if title and section:
-            anchors.append(f"{title} / {section}")
-        elif title:
-            anchors.append(title)
-    if session.last_standalone_query_en:
-        anchors.append(session.last_standalone_query_en)
+        part = _source_anchor(src)
+        if part:
+            anchors.append(part)
+    if not anchors:
+        prior_base = _strip_context_suffix(session.last_base_query_en)
+        if prior_base:
+            anchors.append(prior_base)
     if not anchors:
         return standalone
     anchor_text = "; ".join(dict.fromkeys(anchors))
@@ -156,19 +163,21 @@ def _parse_query_response(
     session: SessionState,
 ) -> QueryResult:
     data = _extract_json(raw)
-    standalone = str(data.get("standalone_query_en", "")).strip()
-    if not standalone:
+    base = _strip_context_suffix(str(data.get("standalone_query_en", "")).strip())
+    if not base:
         raise ValueError("standalone_query_en is empty")
     is_follow_up = _parse_bool(data.get("is_follow_up"), default=bool(history))
     intent = _parse_intent(data.get("intent"), is_follow_up=is_follow_up)
+    standalone = base
     if intent == "synthesis":
-        standalone = _anchor_synthesis_query(standalone, history, session)
+        standalone = _anchor_synthesis_query(base, history, session)
     elif intent == "follow_up" and is_follow_up:
-        standalone = _anchor_follow_up_query(standalone, history, session)
+        standalone = _anchor_follow_up_query(base, history, session)
     if intent == "new_topic":
         is_follow_up = False
     return QueryResult(
         standalone_query_en=standalone,
+        base_query_en=base,
         is_follow_up=is_follow_up,
         intent=intent,
     )

@@ -39,12 +39,14 @@ RECENT_CHUNK_CAP = 12
 @dataclass
 class SessionState:
     last_standalone_query_en: str = ""
+    last_base_query_en: str = ""
     last_chunk_ids: list[str] = field(default_factory=list)
     recent_chunk_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "last_standalone_query_en": self.last_standalone_query_en,
+            "last_base_query_en": self.last_base_query_en,
             "last_chunk_ids": list(self.last_chunk_ids),
             "recent_chunk_ids": list(self.recent_chunk_ids),
         }
@@ -63,6 +65,7 @@ class SessionState:
             recent_ids = list(chunk_ids)
         return cls(
             last_standalone_query_en=str(data.get("last_standalone_query_en", "")),
+            last_base_query_en=str(data.get("last_base_query_en", "")),
             last_chunk_ids=chunk_ids,
             recent_chunk_ids=recent_ids,
         )
