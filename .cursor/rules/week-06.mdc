@@ -59,11 +59,13 @@ alwaysApply: false
 
 Вызовы локальной генерации — через **одну** функцию `complete_local()` в `llm.py` (или аналог), отдельно от облачной.
 
+**Timeout локальной генерации — 300 с** (CPU/iGPU): cite-RAG (rerank + JSON) на `qwen3:8b` легко упирается в 2–3 минуты; 180 с часто мало.
+
 ```python
 response = requests.post(
     f"{base_url}/v1/chat/completions",
     json={"model": model, "messages": messages},
-    timeout=180,  # CPU/iGPU: qwen3:8b медленнее облака
+    timeout=300,  # CPU/iGPU: cite-RAG и длинный контекст
 )
 response.raise_for_status()
 content = response.json()["choices"][0]["message"]["content"]
@@ -76,6 +78,8 @@ content = response.json()["choices"][0]["message"]["content"]
 Дни со **сравнением** или облачным fallback — **[Dockhost Inference](https://docs.dockhost.ru/manual/ai/inference/use)** (как недели 4–5): `DOCKHOST_AI_KEY`, `OPENAI_BASE_URL`, `DOCKHOST_MODEL`, `POST /chat/completions`.
 
 Облачные вызовы — отдельная `complete_cloud()` (или параметр `provider=`), **не смешивать** с Ollama в одной функции без явной маршрутизации.
+
+**RAG-дни (day-03+):** если README или пользователь не требуют «всё локально» — **перевод RU→EN через `complete_cloud()`** (Dockhost); **генерация ответов** — только `complete_local()`. Эмбеддинги — Ollama. Тексты чанков в облако на translate не отправляем — только вопрос пользователя.
 
 Timeout облака ~**45 с**, ретраи — как в `week-04.mdc`.
 
@@ -97,9 +101,10 @@ Timeout облака ~**45 с**, ретраи — как в `week-04.mdc`.
 Где задание требует **RAG** или **MCP** — паттерны недель 4–5, но **генерация** через Ollama:
 
 - **RAG:** эмбеддинги — Ollama `nomic-embed-text` (`OLLAMA_EMBED_MODEL`); retrieve → контекст в prompt локальной LLM.
+- **Structured cite-RAG (JSON):** без retry при битом JSON — один вызов `complete_local()`. При ошибке парсинга — **полный** сырой ответ в stdout (`[raw-response]`), не превью и не обрезка; парсер снимает markdown-обёртку `` ```json `` если есть.
 - **MCP:** свой `mcp/server.py` в `day-DD/`; tool-loop и fuse — см. `week-04.mdc`.
 
-Данные и документы **не уходят в облако**, если задание про локальный контур — не подмешивай Dockhost без требования README.
+Данные корпуса (чанки) **не уходят в облако** на генерацию. Dockhost — только если README явно требует (сравнение, translate и т.п.).
 
 ---
 
