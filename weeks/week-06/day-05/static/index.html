@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Михаил Елизаров</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+</head>
+<body>
+  <div class="app" x-data="chatApp()" x-init="init()">
+    <header class="header">
+      <div>
+        <h1>Михаил Елизаров</h1>
+        <p>бард-панк-шансон · Русский Букер · qwen3:4b</p>
+      </div>
+      <button
+        type="button"
+        class="secondary clear-btn"
+        @click="clearChat()"
+        :disabled="loading || messages.length === 0"
+        title="Удалить историю сообщений"
+      >
+        Очистить чат
+      </button>
+    </header>
+
+    <div class="messages">
+      <template x-if="messages.length === 0 && !streaming.active">
+        <p class="empty">Напишите сообщение — reasoning и ответ появятся по мере генерации.</p>
+      </template>
+
+      <template x-for="(msg, idx) in messages" :key="idx">
+        <div class="msg" :class="msg.role">
+          <template x-if="msg.role === 'assistant' && msg.thinking">
+            <div class="thinking-block">
+              <button
+                type="button"
+                class="thinking-toggle"
+                @click="toggleThinking(idx)"
+              >
+                <span x-text="isThinkingCollapsed(msg) ? '▸' : '▾'"></span>
+                <span>Размышление</span>
+              </button>
+              <div
+                class="thinking-body"
+                x-show="!isThinkingCollapsed(msg)"
+                x-cloak
+                x-text="msg.thinking"
+              ></div>
+            </div>
+          </template>
+          <div class="answer-body" x-text="msg.content"></div>
+        </div>
+      </template>
+
+      <template x-if="streaming.active">
+        <div class="msg assistant streaming">
+          <template x-if="streaming.thinking">
+            <div class="thinking-body has-text" x-text="streaming.thinking"></div>
+          </template>
+          <template x-if="!streaming.thinking && streaming.loading">
+            <div class="thinking-body"></div>
+          </template>
+          <div class="answer-body" x-text="streaming.content"></div>
+        </div>
+      </template>
+    </div>
+
+    <div class="status" :class="{ error: error, warn: trimmed && !error }" x-text="statusText"></div>
+
+    <div class="composer">
+      <textarea
+        x-model="input"
+        placeholder="Сообщение…"
+        rows="2"
+        @keydown.enter.prevent="if (!$event.shiftKey) send()"
+        :disabled="loading"
+      ></textarea>
+      <button type="button" @click="send()" :disabled="loading || !input.trim()">Отправить</button>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "qwen-chat-v2";
+
+    function chatApp() {
+      return {
+        messages: [],
+        input: "",
+        loading: false,
+        error: "",
+        trimmed: false,
+        lastLatencyMs: null,
+        streaming: {
+          active: false,
+          loading: false,
+          thinking: "",
+          content: "",
+        },
+
+        get statusText() {
+          if (this.error) return this.error;
+          const parts = [];
+          if (this.trimmed) parts.push("Контекст обрезан (max context)");
+          if (this.lastLatencyMs != null) parts.push(`${this.lastLatencyMs} ms`);
+          if (this.loading) parts.push("генерация…");
+          return parts.join(" · ");
+        },
+
+        init() {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+              this.messages = JSON.parse(raw).map((m) => ({
+                ...m,
+                thinkingCollapsed: m.thinkingCollapsed !== false,
+              }));
+            }
+          } catch (_) {
+            this.messages = [];
+          }
+        },
+
+        isThinkingCollapsed(msg) {
+          return msg.thinkingCollapsed !== false;
+        },
+
+        toggleThinking(idx) {
+          const msg = this.messages[idx];
+          this.messages[idx] = {
+            ...msg,
+            thinkingCollapsed: !this.isThinkingCollapsed(msg),
+          };
+          this.persist();
+        },
+
+        persist() {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(this.messages));
+        },
+
+        parseSseBlock(block) {
+          let event = "message";
+          let data = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event:")) event = line.slice(6).trim();
+            if (line.startsWith("data:")) data = line.slice(5).trim();
+          }
+          if (!data) return null;
+          try {
+            return { event, data: JSON.parse(data) };
+          } catch (_) {
+            return null;
+          }
+        },
+
+        async consumeStream(response) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+
+            for (const part of parts) {
+              const parsed = this.parseSseBlock(part.trim());
+              if (!parsed) continue;
+
+              if (parsed.event === "thinking") {
+                this.streaming.thinking += parsed.data.delta || "";
+              } else if (parsed.event === "content") {
+                this.streaming.content += parsed.data.delta || "";
+              } else if (parsed.event === "error") {
+                throw new Error(parsed.data.detail || "Stream error");
+              } else if (parsed.event === "done") {
+                return parsed.data;
+              }
+            }
+          }
+          throw new Error("Stream ended without done event");
+        },
+
+        async send() {
+          const text = this.input.trim();
+          if (!text || this.loading) return;
+
+          this.error = "";
+          this.trimmed = false;
+          this.messages.push({ role: "user", content: text });
+          this.input = "";
+          this.persist();
+          this.loading = true;
+          this.streaming = {
+            active: true,
+            loading: true,
+            thinking: "",
+            content: "",
+          };
+
+          try {
+            const response = await fetch("/api/chat/stream", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ messages: this.messages }),
+            });
+
+            if (!response.ok) {
+              const data = await response.json().catch(() => ({}));
+              throw new Error(
+                typeof data.detail === "string" ? data.detail : `HTTP ${response.status}`
+              );
+            }
+
+            const done = await this.consumeStream(response);
+            this.messages.push({
+              role: "assistant",
+              content: done.reply || this.streaming.content,
+              thinking: done.thinking || this.streaming.thinking,
+              thinkingCollapsed: true,
+            });
+            this.lastLatencyMs = done.latency_ms;
+            this.trimmed = Boolean(done.trimmed);
+            this.persist();
+          } catch (err) {
+            this.messages.pop();
+            this.persist();
+            this.error = String(err);
+          } finally {
+            this.loading = false;
+            this.streaming = {
+              active: false,
+              loading: false,
+              thinking: "",
+              content: "",
+            };
+          }
+        },
+
+        clearChat() {
+          this.messages = [];
+          this.error = "";
+          this.trimmed = false;
+          this.lastLatencyMs = null;
+          localStorage.removeItem(STORAGE_KEY);
+        },
+      };
+    }
+  </script>
+</body>
+</html>
