@@ -23,15 +23,12 @@
 git clone <repo-url> ai_chall && cd ai_chall
 chmod +x weeks/week-06/day-05/run.sh
 
-# Ollama: https://ollama.com (если ещё нет)
-# python3-venv на Debian/Ubuntu: sudo apt install python3-venv
 # Открыть порт 8080 в firewall (ufw / security group)
+# Нужен sudo на Debian/Ubuntu — скрипт сам ставит curl, python3-venv, Ollama
 ./weeks/week-06/day-05/run.sh
 ```
 
-Скрипт можно запускать из корня репо или из `weeks/week-06/day-05/` — он сам найдёт корень и `.venv`.
-
-Скрипт: venv + deps, `ollama serve` (если нужно), `ollama pull qwen3:4b`, запуск сервера на `0.0.0.0:8080`.
+Скрипт можно запускать из корня репо или из `weeks/week-06/day-05/` — он сам найдёт корень, создаст `.venv`, при необходимости установит Ollama (`install.sh`), подтянет `qwen3:4b` и запустит сервер на `0.0.0.0:8080`.
 
 Опционально в `.env`:
 
