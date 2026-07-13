@@ -2,7 +2,8 @@
 # Week 6 day 5 — bootstrap на VPS: venv, Ollama, qwen3:4b, «Анекдоты про опоссумов».
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$ROOT"
 
 DAY="weeks/week-06/day-05"
@@ -33,9 +34,17 @@ require_cmd() {
 }
 
 setup_venv() {
-  if [[ ! -d .venv ]]; then
-    log "создаю .venv…"
-    python3 -m venv .venv
+  if [[ ! -f .venv/bin/activate ]]; then
+    if [[ -d .venv ]]; then
+      log "битый .venv — пересоздаю…"
+      rm -rf .venv
+    else
+      log "создаю .venv…"
+    fi
+    if ! python3 -m venv .venv; then
+      echo "[error] не удалось создать venv. Установите пакет: sudo apt install python3-venv" >&2
+      exit 1
+    fi
   fi
   # shellcheck disable=SC1091
   source .venv/bin/activate
