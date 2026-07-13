@@ -10,7 +10,7 @@
 
 На видео (VPS):
 
-1. `./weeks/week-06/day-05/run.sh` — сервис на `http://<VPS_IP>:8080/`.
+1. `./weeks/week-06/day-05/run.sh start` — сервис в фоне на `http://<VPS_IP>:8080/`.
 2. Браузер: выбор 2–3 тем → «Сгенерировать» → стримятся размышление и текст анекдота.
 3. Обновление страницы — пустой экран (нет localStorage).
 4. `curl http://<VPS_IP>:8080/api/health` — доступ по сети.
@@ -25,10 +25,21 @@ chmod +x weeks/week-06/day-05/run.sh
 
 # Открыть порт 8080 в firewall (ufw / security group)
 # Нужен sudo на Debian/Ubuntu — скрипт сам ставит curl, python3-venv, Ollama
-./weeks/week-06/day-05/run.sh
+./weeks/week-06/day-05/run.sh start
 ```
 
-Скрипт можно запускать из корня репо или из `weeks/week-06/day-05/` — он сам найдёт корень, создаст `.venv`, при необходимости установит Ollama (`install.sh`), подтянет `qwen3:4b` и запустит сервер на `0.0.0.0:8080`.
+Управление сервисом:
+
+```bash
+./weeks/week-06/day-05/run.sh start    # bootstrap + фон (по умолчанию)
+./weeks/week-06/day-05/run.sh stop
+./weeks/week-06/day-05/run.sh restart
+./weeks/week-06/day-05/run.sh status   # pid + /api/health
+./weeks/week-06/day-05/run.sh logs     # tail -f server.log
+./weeks/week-06/day-05/run.sh check    # только проверки, без serve
+```
+
+Скрипт можно запускать из корня репо или из `weeks/week-06/day-05/`. PID и лог: `weeks/week-06/day-05/.run/`.
 
 Опционально в `.env`:
 

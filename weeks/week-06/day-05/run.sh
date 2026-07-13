@@ -7,18 +7,33 @@ ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$ROOT"
 
 DAY="weeks/week-06/day-05"
+RUN_DIR="${ROOT}/${DAY}/.run"
 PORT="${PORT:-8080}"
 HOST="${HOST:-0.0.0.0}"
 OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 OLLAMA_CHAT_MODEL="${OLLAMA_CHAT_MODEL:-qwen3:4b}"
 OLLAMA_THINK="${OLLAMA_THINK:-false}"
 
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
+PID_FILE="${RUN_DIR}/server.pid"
+LOG_FILE="${RUN_DIR}/server.log"
+
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--check]
+Usage: $(basename "$0") [start|stop|restart|status|logs|check]
 
-  Без флагов — поднять генератор на http://${HOST}:${PORT}/
-  --check   Только проверки (Ollama, модель, venv), без serve.
+  start     Bootstrap + сервер в фоне (по умолчанию)
+  stop      Остановить сервер
+  restart   stop + start
+  status    PID и health
+  logs      Хвост лога (follow в TTY)
+  check     Только bootstrap и main.py --check, без serve
 
 Скрипт сам ставит недостающее (apt: curl, python3-venv; Ollama — install.sh).
 Нужен sudo на Debian/Ubuntu VPS.
@@ -167,35 +182,130 @@ ensure_model() {
   "${bin}" pull "${OLLAMA_CHAT_MODEL}"
 }
 
-MODE="serve"
-case "${1:-}" in
-  --check) MODE="check" ;;
+bootstrap() {
+  ensure_curl
+  setup_venv
+  ensure_ollama_binary
+  start_ollama_server
+  ensure_model
+  export HOST PORT OLLAMA_BASE_URL OLLAMA_CHAT_MODEL OLLAMA_THINK
+  python "${DAY}/main.py" --check
+}
+
+server_pid() {
+  if [[ -f "$PID_FILE" ]]; then
+    cat "$PID_FILE"
+  fi
+}
+
+is_running() {
+  local pid
+  pid="$(server_pid || true)"
+  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+
+start_app() {
+  if is_running; then
+    log "уже запущен pid=$(server_pid) → http://${HOST}:${PORT}/"
+    return 0
+  fi
+
+  bootstrap
+  mkdir -p "$RUN_DIR"
+
+  log "старт сервера в фоне → http://${HOST}:${PORT}/"
+  nohup env \
+    HOST="$HOST" \
+    PORT="$PORT" \
+    OLLAMA_BASE_URL="$OLLAMA_BASE_URL" \
+    OLLAMA_CHAT_MODEL="$OLLAMA_CHAT_MODEL" \
+    OLLAMA_THINK="$OLLAMA_THINK" \
+    python "${DAY}/main.py" --serve >>"$LOG_FILE" 2>&1 &
+  echo $! >"$PID_FILE"
+
+  for _ in $(seq 1 15); do
+    if curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
+      log "OK pid=$(server_pid) log=${LOG_FILE}"
+      return 0
+    fi
+    if ! is_running; then
+      echo "[error] процесс упал при старте, см. ${LOG_FILE}" >&2
+      rm -f "$PID_FILE"
+      tail -n 30 "$LOG_FILE" >&2 || true
+      exit 1
+    fi
+    sleep 1
+  done
+
+  log "процесс pid=$(server_pid) жив, health ещё не ответил — см. ${LOG_FILE}"
+}
+
+stop_app() {
+  local pid
+  if ! is_running; then
+    rm -f "$PID_FILE"
+    log "сервер не запущен"
+    return 0
+  fi
+  pid="$(server_pid)"
+  log "останавливаю pid=${pid}…"
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 10); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$PID_FILE"
+      log "остановлен"
+      return 0
+    fi
+    sleep 1
+  done
+  log "SIGTERM не помог — kill -9"
+  kill -9 "$pid" 2>/dev/null || true
+  rm -f "$PID_FILE"
+  log "остановлен принудительно"
+}
+
+status_app() {
+  if is_running; then
+    log "running pid=$(server_pid) url=http://${HOST}:${PORT}/ log=${LOG_FILE}"
+    if curl -sf "http://127.0.0.1:${PORT}/api/health" | python3 -m json.tool 2>/dev/null; then
+      return 0
+    fi
+    log "health: не отвечает (процесс жив)"
+    return 1
+  fi
+  rm -f "$PID_FILE"
+  log "not running"
+  return 1
+}
+
+logs_app() {
+  if [[ ! -f "$LOG_FILE" ]]; then
+    echo "[error] лог не найден: ${LOG_FILE}" >&2
+    exit 1
+  fi
+  if [[ -t 1 ]]; then
+    tail -f "$LOG_FILE"
+  else
+    tail -n 80 "$LOG_FILE"
+  fi
+}
+
+CMD="${1:-start}"
+case "$CMD" in
+  start|"") CMD=start ;;
+  stop|restart|status|logs|check|--check) ;;
   -h|--help) usage; exit 0 ;;
-  "") ;;
-  *) echo "unknown option: $1" >&2; usage; exit 1 ;;
+  *) echo "unknown command: $CMD" >&2; usage; exit 1 ;;
 esac
 
-if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
-fi
-
-ensure_curl
-setup_venv
-ensure_ollama_binary
-start_ollama_server
-ensure_model
-
-export HOST PORT OLLAMA_BASE_URL OLLAMA_CHAT_MODEL OLLAMA_THINK
-
-python "${DAY}/main.py" --check
-
-if [[ "$MODE" == "check" ]]; then
-  log "check OK"
-  exit 0
-fi
-
-log "старт сервера: http://${HOST}:${PORT}/"
-exec python "${DAY}/main.py" --serve
+case "$CMD" in
+  start) start_app ;;
+  stop) stop_app ;;
+  restart) stop_app; start_app ;;
+  status) status_app ;;
+  logs) logs_app ;;
+  check|--check)
+    bootstrap
+    log "check OK"
+    ;;
+esac
