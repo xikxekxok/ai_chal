@@ -131,22 +131,31 @@ def _usage_from_chat_response(data: dict[str, Any]) -> dict[str, int]:
     }
 
 
-def _build_local_payload(cfg: AppConfig, messages: list[dict[str, str]]) -> dict[str, Any]:
-    return {
+def _build_local_payload(
+    cfg: AppConfig,
+    messages: list[dict[str, str]],
+    *,
+    think: bool = True,
+) -> dict[str, Any]:
+    """Native /api/chat — num_predict не задаём (как day-04): qwen3 тратит budget на thinking."""
+    payload: dict[str, Any] = {
         "model": cfg.ollama_model,
         "messages": messages,
         "stream": True,
-        "think": True,
-        "options": {
-            "num_ctx": cfg.num_ctx,
-            "num_predict": cfg.max_tokens,
-        },
+        "think": think,
+        "options": {"num_ctx": cfg.num_ctx, "temperature": cfg.ollama_temperature},
     }
+    if cfg.ollama_max_predict > 0:
+        payload["options"]["num_predict"] = cfg.ollama_max_predict
+    return payload
 
 
 def iter_local_stream(
     messages: list[dict[str, str]],
     config: AppConfig | None = None,
+    *,
+    think: bool = True,
+    _retried: bool = False,
 ) -> Iterator[dict[str, object]]:
     """Yields SSE-ready dicts: thinking/content deltas and final done metadata."""
     cfg = config or load_config()
@@ -158,7 +167,7 @@ def iter_local_stream(
     try:
         response = requests.post(
             f"{cfg.ollama_base_url}/api/chat",
-            json=_build_local_payload(cfg, messages),
+            json=_build_local_payload(cfg, messages, think=think),
             timeout=LOCAL_TIMEOUT,
             stream=True,
         )
@@ -192,7 +201,15 @@ def iter_local_stream(
     thinking = "".join(thinking_parts)
     content = "".join(content_parts).strip()
     if not content:
-        raise OllamaError("LLM вернул пустой ответ")
+        if think and not _retried:
+            yield from iter_local_stream(messages, config, think=False, _retried=True)
+            return
+        detail = "LLM вернул пустой ответ"
+        if thinking:
+            detail += (
+                " (reasoning завершился, content пуст — проверьте num_ctx / ollama_max_predict)"
+            )
+        raise OllamaError(detail)
 
     yield {
         "event": "done",
@@ -200,6 +217,7 @@ def iter_local_stream(
         "thinking": thinking,
         "usage": usage,
         "latency_ms": elapsed_ms,
+        "provider": "local",
     }
 
 
@@ -248,6 +266,143 @@ def complete_cloud(
     messages: list[dict[str, str]],
     config: AppConfig | None = None,
 ) -> CompletionResult:
+    result = stream_cloud(messages, config)
+    return CompletionResult(
+        content=result.content,
+        usage=result.usage,
+        latency_ms=result.latency_ms,
+        provider="cloud",
+        thinking=result.thinking,
+    )
+
+
+def _cloud_headers(cfg: AppConfig) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {cfg.cloud_api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+def _parse_openai_sse_line(raw_line: str) -> dict[str, Any] | None:
+    line = raw_line.strip()
+    if not line.startswith("data:"):
+        return None
+    payload = line[5:].strip()
+    if payload == "[DONE]":
+        return {"done": True}
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+
+
+def iter_cloud_stream(
+    messages: list[dict[str, str]],
+    config: AppConfig | None = None,
+) -> Iterator[dict[str, object]]:
+    """Yields SSE-ready dicts: content deltas and final done metadata."""
+    cfg = config or load_config()
+    if not cfg.cloud_api_key:
+        raise CloudError("DOCKHOST_AI_KEY не задан")
+
+    payload: dict[str, object] = {
+        "model": cfg.cloud_model,
+        "messages": messages,
+        "max_tokens": cfg.max_tokens,
+        "stream": True,
+    }
+    start = time.perf_counter()
+    content_parts: list[str] = []
+    usage: dict[str, Any] = {}
+    last_exc: BaseException | None = None
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        content_parts.clear()
+        usage = {}
+        try:
+            response = requests.post(
+                f"{cfg.cloud_base_url}/chat/completions",
+                headers=_cloud_headers(cfg),
+                json=payload,
+                timeout=CLOUD_TIMEOUT,
+                stream=True,
+            )
+            if response.status_code in RETRYABLE_HTTP:
+                response.raise_for_status()
+            response.raise_for_status()
+        except (Timeout, ConnectionError, HTTPError) as exc:
+            last_exc = exc
+            if not _should_retry(exc, attempt, MAX_RETRIES):
+                break
+            time.sleep(RETRY_BACKOFF_SEC * attempt)
+            continue
+
+        for raw_line in response.iter_lines(decode_unicode=True):
+            if not raw_line:
+                continue
+            chunk = _parse_openai_sse_line(raw_line)
+            if chunk is None:
+                continue
+            if chunk.get("done"):
+                break
+
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+            choice = choices[0]
+            delta = (choice.get("delta") or {}).get("content") or ""
+            if delta:
+                content_parts.append(delta)
+                yield {"event": "content", "delta": delta}
+            if chunk.get("usage"):
+                usage = chunk["usage"]
+
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        content = "".join(content_parts).strip()
+        if not content:
+            raise CloudError("облачная LLM вернула пустой ответ")
+
+        yield {
+            "event": "done",
+            "reply": content,
+            "thinking": "",
+            "usage": usage,
+            "latency_ms": elapsed_ms,
+            "provider": "cloud",
+        }
+        return
+
+    reason = _retry_reason(last_exc) if last_exc else "unknown"
+    raise CloudError(f"запрос к Dockhost не удался: {reason}") from last_exc
+
+
+def stream_cloud(
+    messages: list[dict[str, str]],
+    config: AppConfig | None = None,
+) -> StreamResult:
+    content = ""
+    usage: dict[str, Any] = {}
+    latency_ms = 0
+    for item in iter_cloud_stream(messages, config):
+        event = item.get("event")
+        if event == "content":
+            content += str(item.get("delta") or "")
+        elif event == "done":
+            content = str(item.get("reply") or content)
+            usage = item.get("usage") or {}
+            latency_ms = int(item.get("latency_ms") or 0)
+    return StreamResult(
+        thinking="",
+        content=content,
+        usage=usage,
+        latency_ms=latency_ms,
+    )
+
+
+def _complete_cloud_non_stream(
+    messages: list[dict[str, str]],
+    config: AppConfig | None = None,
+) -> CompletionResult:
     cfg = config or load_config()
     if not cfg.cloud_api_key:
         raise CloudError("DOCKHOST_AI_KEY не задан")
@@ -292,6 +447,18 @@ def complete_cloud(
 
     reason = _retry_reason(last_exc) if last_exc else "unknown"
     raise CloudError(f"запрос к Dockhost не удался: {reason}") from last_exc
+
+
+def iter_chat_stream(
+    messages: list[dict[str, str]],
+    *,
+    provider: Provider = "local",
+    config: AppConfig | None = None,
+) -> Iterator[dict[str, object]]:
+    if provider == "cloud":
+        yield from iter_cloud_stream(messages, config)
+        return
+    yield from iter_local_stream(messages, config)
 
 
 def complete_chat(

@@ -14,9 +14,10 @@ DAY_DIR = Path(__file__).resolve().parent
 if str(DAY_DIR) not in sys.path:
     sys.path.insert(0, str(DAY_DIR))
 
-from app.config import load_config  # noqa: E402
+from app.config import OPPOSSUM_JOKE_THEMES, load_config  # noqa: E402
 from app.limits import ensure_system_prompt  # noqa: E402
 from app.llm import (  # noqa: E402
+    check_cloud_status,
     check_ollama_status,
     complete_chat,
 )
@@ -24,6 +25,7 @@ from app.llm import (  # noqa: E402
 
 def run_check() -> None:
     local = check_ollama_status()
+    cloud = check_cloud_status()
     cfg = load_config()
 
     if local.get("ok"):
@@ -33,24 +35,41 @@ def run_check() -> None:
         )
     else:
         print(f"[check] local: FAIL — {local.get('error')}", file=sys.stderr)
+
+    if cloud.get("ok"):
+        print(f"[check] cloud: {cloud.get('base_url')} model={cloud.get('model')} OK")
+    else:
+        print(f"[check] cloud: unavailable — {cloud.get('error')}")
+
+    if not local.get("ok") and not cloud.get("ok"):
         sys.exit(1)
 
+    print("[check] app: opossum-jokes (local joke generator)")
+    print(f"[check] themes: {len(OPPOSSUM_JOKE_THEMES)} hardcoded")
     print(f"[check] listen: {cfg.host}:{cfg.port}")
     print(
         f"[check] limits: rate={cfg.rate_limit_per_min}/min, "
         f"max_messages={cfg.max_messages}, max_chars={cfg.max_chars}, "
-        f"max_tokens={cfg.max_tokens}"
+        f"num_ctx={cfg.num_ctx}, cloud_max_tokens={cfg.max_tokens}, "
+        f"ollama_max_predict={cfg.ollama_max_predict or 'off'}, "
+        f"ollama_temperature={cfg.ollama_temperature}"
     )
+    print(f"[check] system_prompt: {len(cfg.system_prompt)} chars")
 
 
 def run_serve() -> None:
     local = check_ollama_status()
-    if not local.get("ok"):
-        print(f"[error] {local.get('error')}", file=sys.stderr)
+    cloud = check_cloud_status()
+    if not local.get("ok") and not cloud.get("ok"):
+        print("[error] Нет доступного провайдера (local и cloud недоступны).", file=sys.stderr)
+        if local.get("error"):
+            print(f"[error] local: {local.get('error')}", file=sys.stderr)
+        if cloud.get("error"):
+            print(f"[error] cloud: {cloud.get('error')}", file=sys.stderr)
         sys.exit(1)
     cfg = load_config()
     print(f"[serve] http://{cfg.host}:{cfg.port}/")
-    print(f"[serve] local: {cfg.ollama_model} (think=on, stream via /api/chat/stream)")
+    print(f"[serve] app: Анекдоты про опоссумов ({cfg.ollama_model})")
     uvicorn.run(
         "app.server:app",
         host=cfg.host,
@@ -74,12 +93,17 @@ def run_stress(count: int = 5) -> None:
         sys.exit(1)
 
     print(f"[stress] {count} sequential POST /api/chat on {base}")
+    sample_themes = [t["label"] for t in OPPOSSUM_JOKE_THEMES[:3]]
+    joke_prompt = (
+        f"Напиши один короткий анекдот про опоссума, используя темы: "
+        f"{', '.join(sample_themes)}."
+    )
     prompts = [
+        joke_prompt,
         "Reply with one word: hello.",
         "What is 2+2? Number only.",
-        "Name one color.",
+        joke_prompt,
         "Say OK.",
-        "Reply: done.",
     ]
 
     for i in range(count):
@@ -90,7 +114,7 @@ def run_stress(count: int = 5) -> None:
         try:
             response = requests.post(
                 f"{base}/api/chat",
-                json={"messages": messages},
+                json={"messages": messages, "provider": "local"},
                 timeout=300,
             )
             elapsed = int((time.perf_counter() - start) * 1000)
@@ -113,7 +137,7 @@ def run_stress(count: int = 5) -> None:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Локальный LLM как HTTP-сервис (FastAPI + Ollama qwen3:4b)."
+        description="Анекдоты про опоссумов — локальный генератор (FastAPI + Ollama)."
     )
     parser.add_argument(
         "--check",
@@ -123,7 +147,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--serve",
         action="store_true",
-        help="Запустить веб-сервер (API + Alpine.js чат).",
+        help="Запустить веб-сервер (UI + API).",
     )
     parser.add_argument(
         "--stress",
@@ -144,10 +168,16 @@ def run_stress_direct(count: int = 3) -> None:
         print(f"[error] {status.get('error')}", file=sys.stderr)
         sys.exit(1)
     cfg = load_config()
+    sample_themes = [t["label"] for t in OPPOSSUM_JOKE_THEMES[:2]]
+    joke_prompt = (
+        f"Напиши один короткий анекдот про опоссума, используя темы: "
+        f"{', '.join(sample_themes)}."
+    )
     print(f"[stress-direct] {count} calls to Ollama ({cfg.ollama_model})")
     for i in range(count):
+        content = joke_prompt if i == 0 else f"Reply with digit {i + 1} only."
         messages = ensure_system_prompt(
-            [{"role": "user", "content": f"Reply with digit {i + 1} only."}],
+            [{"role": "user", "content": content}],
             cfg.system_prompt,
         )
         result = complete_chat(messages, provider="local", config=cfg)

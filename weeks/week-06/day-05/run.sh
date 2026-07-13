@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Week 6 day 5 — bootstrap на VPS: venv, Ollama, qwen3:4b, веб-сервис.
+# Week 6 day 5 — bootstrap на VPS: venv, Ollama, qwen3:4b, «Анекдоты про опоссумов».
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -16,7 +16,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--check]
 
-  Без флагов — поднять чат-сервис на http://${HOST}:${PORT}/
+  Без флагов — поднять генератор на http://${HOST}:${PORT}/
   --check   Только проверки (Ollama, модель, venv), без serve.
 
 Переменные: HOST, PORT, OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL, OLLAMA_THINK.

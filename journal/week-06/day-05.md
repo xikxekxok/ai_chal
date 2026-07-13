@@ -2,25 +2,21 @@
 
 ## Сделано
 
-- FastAPI: SSE `/api/chat/stream` (thinking + answer), `/api/health`, Alpine.js UI.
-- Светлая тема; local-only в UI (облако спрятано).
-- qwen3:4b: `think=true`, native `/api/chat` stream; thinking collapsible в истории.
-- Системный промпт: реальный Михаил Елизаров (биография, «Библиотекарь»,
-  бард-панк-шансон); ответы слегка гротескные.
-- Stateless бекенд, localStorage; rate limit, max context trim.
-- `run.sh` для VPS.
+- Переделка day-05: генератор анекдотов про опоссумов вместо текстового приключения.
+- 10 захардкоженных тем в `app/config.py`, `GET /api/themes`.
+- UI: выбор 1–10 тем, кнопка «Сгенерировать», SSE thinking + текст.
+- Только локальная Ollama в UI; без localStorage — после F5 всё пусто.
 
 ## Интересное
 
-- Паттерн stream из day-04 перенесён в веб: SSE → Alpine live update.
-- `CHAT_MAX_TOKENS=2048` — иначе reasoning съедает budget.
+- Один анекдот вплетает все выбранные темы через user prompt + короткий system prompt.
+- Бекенд stateless; сессия только в памяти Alpine.js.
 
 ## Проблемы
 
-- Dockhost usage с nested dict ломал Pydantic — исправлено `dict[str, object]`.
-- qwen3 через `/v1` + `think=false` всё равно медленный — нужен native stream.
+- (пока нет)
 
 ## Вывод
 
-- Видео: `./weeks/week-06/day-05/run.sh`, браузер — виден stream thinking/answer.
+- Видео: `./run.sh`, браузер — выбор тем, генерация, виден stream; F5 — пусто.
 - Smoke: `python weeks/week-06/day-05/main.py --check`
