@@ -1,0 +1,65 @@
+{
+  "users": [
+    {
+      "id": "U-100",
+      "name": "Анна Смирнова",
+      "email": "anna@notesync.example",
+      "plan": "business",
+      "company": "Northwind Studio",
+      "locale": "ru-RU",
+      "sso_enabled": true,
+      "last_login_at": "2026-07-15T08:41:00Z"
+    },
+    {
+      "id": "U-101",
+      "name": "Илья Ковалёв",
+      "email": "ilya@notesync.example",
+      "plan": "pro",
+      "company": "NoteLabs",
+      "locale": "ru-RU",
+      "sso_enabled": false,
+      "last_login_at": "2026-07-14T19:05:00Z"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "T-1042",
+      "user_id": "U-100",
+      "status": "open",
+      "priority": "high",
+      "subject": "После включения SSO сотрудники не могут войти",
+      "created_at": "2026-07-15T07:55:00Z",
+      "updated_at": "2026-07-16T09:10:00Z",
+      "tags": ["sso", "auth", "saml"],
+      "messages": [
+        {
+          "from": "customer",
+          "at": "2026-07-15T07:55:00Z",
+          "text": "После перевода домена на SSO пользователи видят ошибку 'domain not verified'."
+        },
+        {
+          "from": "support",
+          "at": "2026-07-15T08:20:00Z",
+          "text": "Попросили проверить домен и ACS URL, ждём скриншоты."
+        }
+      ]
+    },
+    {
+      "id": "T-1045",
+      "user_id": "U-101",
+      "status": "pending",
+      "priority": "medium",
+      "subject": "Импорт markdown заметок дублирует вложения",
+      "created_at": "2026-07-14T12:00:00Z",
+      "updated_at": "2026-07-15T10:30:00Z",
+      "tags": ["import", "attachments"],
+      "messages": [
+        {
+          "from": "customer",
+          "at": "2026-07-14T12:00:00Z",
+          "text": "После импорта архива некоторые файлы появились дважды."
+        }
+      ]
+    }
+  ]
+}
