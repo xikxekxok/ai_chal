@@ -1,0 +1,108 @@
+openapi: 3.0.3
+info:
+  title: TaskBoard API
+  version: 0.1.0
+  description: Учебный API учёта задач (in-memory).
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Проверка живости сервиса
+      operationId: getHealth
+      responses:
+        "200":
+          description: Сервис доступен
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+  /tasks:
+    get:
+      summary: Список всех задач
+      operationId: listTasks
+      responses:
+        "200":
+          description: Массив задач
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      summary: Создать задачу
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreate"
+      responses:
+        "201":
+          description: Задача создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "422":
+          description: Ошибка валидации
+  /tasks/{task_id}:
+    get:
+      summary: Получить задачу по id
+      operationId: getTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Задача найдена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Задача не найдена
+components:
+  schemas:
+    TaskStatus:
+      type: string
+      enum: [todo, doing, done]
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+    Task:
+      type: object
+      required: [id, title, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        created_at:
+          type: string
+          format: date-time
