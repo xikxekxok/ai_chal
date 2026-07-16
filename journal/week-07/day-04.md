@@ -1,0 +1,6 @@
+- Собрал `week-07/day-04` как отдельный CLI-проект с локальным file-assistant без MCP: `main.py`, `llm.py`, `agent.py`, `tools.py`, `paths.py`.
+- Сделал sandbox-проект в `sandbox_seed/`: `api.py`, `app.py`, `handlers.py`, устаревший `README.md`, который агент обновляет по реальному коду.
+- Добавил tool registry/executor с `list_dir`, `read_file`, `search_files`, `write_file`; чтение и запись ограничены `sandbox_workspace/`, на запись показывается diff preview.
+- Для видео подготовил `--tools-test`, `--reset`, `--demo`, `--chat` и сценарий с поиском `fetch_user` и обновлением `README.md`.
+- Интересное: здесь агент уже работает как мини-ОС из лекции недели 7, но максимально просто, без MCP и без опасных операций.
+- Проверка: запустил lint и smoke path без LLM; интеграционный `--demo` зависит от ключа/сети Dockhost.
